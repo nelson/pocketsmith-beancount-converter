@@ -37,10 +37,10 @@ This project provides a comprehensive way to:
 
 ```bash
 # Fetch and convert transactions
-python -m pocketsmith_beancount.main
+uv run python -m src.pocketsmith_beancount.main
 
 # Run with specific date range
-python -m pocketsmith_beancount.main --start-date 2024-01-01 --end-date 2024-12-31
+uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-date 2024-12-31
 ```
 
 ## Development

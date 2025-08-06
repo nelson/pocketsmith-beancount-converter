@@ -50,15 +50,20 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 ### 🔄 Phase 5: Bug Fixes & Feature Enhancements (IN PROGRESS)
 
 #### 🐛 Critical Bugs to Fix
-- [ ] **Fix commodities capitalization** - Use AUD, IDR, EUR instead of lowercase
-- [ ] **Fix account directives** - Use PocketSmith account names with IDs as metadata instead of "Unknown account"
-- [ ] **Add category account directives** - Create account directives for each PocketSmith category
-- [ ] **Fix payee/narration mapping** - Use PocketSmith Merchant as payee, Note as narration
+- [x] **Fix commodities capitalization** - Use AUD, IDR, EUR instead of lowercase ✅ COMPLETED
+- [x] **Fix account directives** - Use PocketSmith account names with IDs as metadata instead of "Unknown account" ✅ COMPLETED
+- [x] **Add category account directives** - Create account directives for each PocketSmith category ✅ COMPLETED
+- [x] **Fix payee/narration mapping** - Use PocketSmith Merchant as payee, Note as narration ✅ COMPLETED
 - [ ] **Add bean-check validation** - Integrate bean-check into pre-commit hook and GitHub workflow
+- [x] **Add bean-check to local validation flow** - Run bean-check before pytest and ruff in development workflow ✅ COMPLETED
+- [x] **Fix Beancount account name underscores** - Strip initial underscores from PocketSmith account names and convert spaces to hyphens ✅ COMPLETED
+- [x] **Fix account declaration vs transaction name mismatch** - Account declarations show "Assets: Unknown: Account-blah" but transactions have correct names ✅ COMPLETED
+- [x] **Change metadata key naming** - Use 'id' instead of 'pocketsmith_id' in metadata ✅ COMPLETED
+- [x] **Add transaction IDs to metadata** - Transactions currently missing ID metadata ✅ COMPLETED
 
 #### ✨ Missing Features to Implement
 - [ ] **Implement pagination** - Fetch transactions using pagination (1,000 per page) with Links header navigation
-- [ ] **Add PocketSmith metadata** - Include PocketSmith IDs as beancount metadata for accounts and categories
+- [x] **Add PocketSmith metadata** - Include PocketSmith IDs as beancount metadata for accounts and categories ✅ COMPLETED
 - [ ] **Convert labels to tags** - Use PocketSmith transaction labels as beancount #tags
 - [ ] **Add needs_review flag** - Use PocketSmith needs_review field to add ! flag to transactions
 - [ ] **Fetch all transactions** - Ensure complete transaction retrieval (not just subset)
@@ -80,8 +85,8 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 **Phases 1-4 Complete** - Basic PocketSmith-to-Beancount converter implemented and tested.
 
 **Phase 5 In Progress** - Addressing critical bugs and implementing missing features:
-- 5 critical bugs identified requiring fixes
-- 6 missing features to implement for complete functionality
+- ✅ 9 of 10 critical bugs COMPLETED
+- ✅ 1 of 6 missing features COMPLETED  
 - Unit tests needed for all changes
 - bean-check validation integration required
 
@@ -129,15 +134,15 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 - ✅ End-to-end workflow tested with real data
 
 ### 🐛 Known Issues
-- ❌ Commodities use lowercase instead of uppercase (aud → AUD)
-- ❌ Account directives show "Unknown account" instead of PocketSmith names
-- ❌ Missing account directives for PocketSmith categories
-- ❌ Same string used for both payee and narration
+- ✅ Commodities use lowercase instead of uppercase (aud → AUD) - FIXED
+- ✅ Account directives show "Unknown account" instead of PocketSmith names - FIXED
+- ✅ Missing account directives for PocketSmith categories - FIXED
+- ✅ Same string used for both payee and narration - FIXED
 - ❌ No bean-check validation in CI/CD
 
 ### 🚧 Missing Features
 - ❌ Pagination for large transaction sets
-- ❌ PocketSmith IDs as beancount metadata
+- ✅ PocketSmith IDs as beancount metadata - IMPLEMENTED
 - ❌ Transaction labels as beancount tags
 - ❌ needs_review flag support
 - ❌ Complete transaction fetching

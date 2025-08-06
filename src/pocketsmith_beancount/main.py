@@ -40,9 +40,13 @@ def main():
         user = client.get_user()
         print(f"Connected as: {user.get('login', 'Unknown User')}")
 
-        print("Fetching accounts...")
-        accounts = client.get_accounts()
-        print(f"Found {len(accounts)} accounts")
+        print("Fetching transaction accounts...")
+        transaction_accounts = client.get_transaction_accounts()
+        print(f"Found {len(transaction_accounts)} transaction accounts")
+
+        print("Fetching categories...")
+        categories = client.get_categories()
+        print(f"Found {len(categories)} categories")
 
         print("Fetching transactions...")
         transactions = client.get_transactions(
@@ -57,7 +61,9 @@ def main():
             return
 
         print("Converting to Beancount format...")
-        beancount_content = converter.convert_transactions(transactions, accounts)
+        beancount_content = converter.convert_transactions(
+            transactions, transaction_accounts, categories
+        )
 
         print("Writing to file...")
         output_file = writer.write_beancount_file(beancount_content, args.filename)
