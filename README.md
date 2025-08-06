@@ -17,8 +17,9 @@ This project provides a seamless way to:
    ```
 
 2. Set up your PocketSmith API key:
-   ```bash
-   export POCKETSMITH_API_KEY="your_api_key_here"
+   Create a `.env` file in the project root with your API key:
+   ```
+   POCKETSMITH_API_KEY=your_api_key_here
    ```
 
 ## Usage
