@@ -11,7 +11,11 @@ class BeancountConverter:
         self.currencies = set()
 
     def _sanitize_account_name(self, name: str) -> str:
-        name = re.sub(r"[^a-zA-Z0-9\-_]", "-", name)
+        # Strip initial underscores and convert spaces to hyphens
+        name = name.lstrip("_")
+        name = name.replace(" ", "-")
+        # Replace other invalid characters with hyphens
+        name = re.sub(r"[^a-zA-Z0-9\-]", "-", name)
         name = re.sub(r"-+", "-", name)
         return name.strip("-").title()
 
@@ -60,20 +64,54 @@ class BeancountConverter:
         return self.category_mapping[category["id"]]
 
     def generate_account_declarations(
-        self, accounts: List[Dict[str, Any]]
+        self, transaction_accounts: List[Dict[str, Any]]
     ) -> List[str]:
         declarations = []
         account_names = set()
 
-        for account in accounts:
+        for account in transaction_accounts:
             account_name = self._get_account_name(account)
             if account_name not in account_names:
-                currency = account.get("currency_code", "USD")
+                account_id = account.get("id")
+
+                # Use base currency from transaction account
+                currency = account.get("currency_code", "USD").upper()
                 self.currencies.add(currency)
+
+                # Use starting_balance_date as account open date
+                open_date = account.get("starting_balance_date")
+                if open_date:
+                    # Parse and format the date
+                    open_date = datetime.fromisoformat(
+                        open_date.replace("Z", "+00:00")
+                    ).strftime("%Y-%m-%d")
+                else:
+                    open_date = datetime.now().strftime("%Y-%m-%d")
+
+                metadata = f'\n    id: "{account_id}"' if account_id else ""
                 declarations.append(
-                    f"{datetime.now().strftime('%Y-%m-%d')} open {account_name} {currency}"
+                    f"{open_date} open {account_name} {currency}{metadata}"
                 )
                 account_names.add(account_name)
+
+        return sorted(declarations)
+
+    def generate_category_declarations(
+        self, categories: List[Dict[str, Any]], open_date: str = None
+    ) -> List[str]:
+        declarations = []
+        category_names = set()
+
+        if not open_date:
+            open_date = datetime.now().strftime("%Y-%m-%d")
+
+        for category in categories:
+            category_account = self._get_category_account(category)
+            if category_account not in category_names:
+                category_id = category.get("id")
+                metadata = f'\n    id: "{category_id}"' if category_id else ""
+                declarations.append(f"{open_date} open {category_account}{metadata}")
+                category_names.add(category_account)
 
         return sorted(declarations)
 
@@ -81,7 +119,7 @@ class BeancountConverter:
         declarations = []
         for currency in sorted(self.currencies):
             declarations.append(
-                f"{datetime.now().strftime('%Y-%m-%d')} commodity {currency}"
+                f"{datetime.now().strftime('%Y-%m-%d')} commodity {currency.upper()}"
             )
         return declarations
 
@@ -91,16 +129,28 @@ class BeancountConverter:
         date = datetime.fromisoformat(
             transaction["date"].replace("Z", "+00:00")
         ).strftime("%Y-%m-%d")
-        payee = (transaction.get("payee") or "").replace('"', '\\"')
-        narration = (transaction.get("memo") or "").replace('"', '\\"')
 
-        if not narration and payee:
-            narration = payee
-        elif not narration:
-            narration = "Transaction"
+        # Use merchant as payee, note as narration
+        payee = (transaction.get("merchant") or transaction.get("payee") or "").replace(
+            '"', '\\"'
+        )
+        narration = (transaction.get("note") or transaction.get("memo") or "").replace(
+            '"', '\\"'
+        )
 
+        # Fallback logic for empty fields
+        if not payee:
+            payee = "Unknown"
+        if not narration:
+            narration = ""
+
+        # Use transaction amount and get currency from transaction account
         amount = Decimal(str(transaction["amount"]))
-        currency = transaction.get("currency_code", "USD")
+        transaction_account = transaction.get("transaction_account", {})
+        currency = (
+            transaction.get("currency_code")
+            or transaction_account.get("currency_code", "USD")
+        ).upper()
         self.currencies.add(currency)
 
         transaction_account = transaction.get("transaction_account", {})
@@ -114,6 +164,11 @@ class BeancountConverter:
 
         lines = [f'{date} * "{payee}" "{narration}"']
 
+        # Add transaction ID metadata
+        transaction_id = transaction.get("id")
+        if transaction_id:
+            lines.append(f'    id: "{transaction_id}"')
+
         if amount > 0:
             lines.append(f"  {account_name}  {amount} {currency}")
             lines.append(f"  {category_account}")
@@ -124,9 +179,22 @@ class BeancountConverter:
         return "\n".join(lines)
 
     def convert_transactions(
-        self, transactions: List[Dict[str, Any]], accounts: List[Dict[str, Any]]
+        self,
+        transactions: List[Dict[str, Any]],
+        transaction_accounts: List[Dict[str, Any]],
+        categories: List[Dict[str, Any]] = None,
     ) -> str:
-        account_dict = {acc["id"]: acc for acc in accounts}
+        account_dict = {acc["id"]: acc for acc in transaction_accounts}
+
+        # Find the earliest transaction date for category declarations
+        earliest_date = None
+        if transactions:
+            earliest_date = min(
+                datetime.fromisoformat(t["date"].replace("Z", "+00:00")).strftime(
+                    "%Y-%m-%d"
+                )
+                for t in transactions
+            )
 
         beancount_entries = []
 
@@ -135,9 +203,28 @@ class BeancountConverter:
             beancount_entries.extend(commodity_declarations)
             beancount_entries.append("")
 
-        account_declarations = self.generate_account_declarations(accounts)
+        # Use authoritative transaction accounts for declarations
+        account_declarations = self.generate_account_declarations(transaction_accounts)
         if account_declarations:
             beancount_entries.extend(account_declarations)
+            beancount_entries.append("")
+
+        if categories:
+            category_declarations = self.generate_category_declarations(
+                categories, earliest_date
+            )
+            if category_declarations:
+                beancount_entries.extend(category_declarations)
+                beancount_entries.append("")
+
+        # Check if Expenses:Uncategorized is used and add declaration if needed
+        uses_uncategorized = any(
+            not transaction.get("category") for transaction in transactions
+        )
+        if uses_uncategorized:
+            open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
+            uncategorized_declaration = f"{open_date} open Expenses:Uncategorized"
+            beancount_entries.append(uncategorized_declaration)
             beancount_entries.append("")
 
         transaction_entries = []

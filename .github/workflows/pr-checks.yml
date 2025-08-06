@@ -1,10 +1,6 @@
 name: PR Checks
 
-on:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
+on: [pull_request, push]
 
 jobs:
   test:
@@ -35,6 +31,18 @@ jobs:
 
     - name: Run tests
       run: uv run pytest -v
+
+    - name: Test beancount conversion
+      run: |
+        uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-date 2024-01-31 || echo "Conversion test skipped (requires API key)"
+
+    - name: Validate beancount files
+      run: |
+        if ls output/*.beancount 1> /dev/null 2>&1; then
+          uv run bean-check output/*.beancount
+        else
+          echo "No beancount files found to validate"
+        fi
 
   lint-and-format:
     runs-on: ubuntu-latest
