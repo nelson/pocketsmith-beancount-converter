@@ -201,6 +201,14 @@ class BeancountConverter:
 
         beancount_entries = []
 
+        # Process transactions first to collect currencies
+        transaction_entries = []
+        for transaction in sorted(transactions, key=lambda t: t["date"]):
+            entry = self.convert_transaction(transaction, account_dict)
+            if entry:
+                transaction_entries.append(entry)
+
+        # Now generate commodity declarations after currencies are collected
         commodity_declarations = self.generate_commodity_declarations()
         if commodity_declarations:
             beancount_entries.extend(commodity_declarations)
@@ -229,12 +237,6 @@ class BeancountConverter:
             uncategorized_declaration = f"{open_date} open Expenses:Uncategorized"
             beancount_entries.append(uncategorized_declaration)
             beancount_entries.append("")
-
-        transaction_entries = []
-        for transaction in sorted(transactions, key=lambda t: t["date"]):
-            entry = self.convert_transaction(transaction, account_dict)
-            if entry:
-                transaction_entries.append(entry)
 
         if transaction_entries:
             beancount_entries.extend(transaction_entries)
