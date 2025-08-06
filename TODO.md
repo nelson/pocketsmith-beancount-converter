@@ -69,9 +69,71 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 - [ ] **Fetch all transactions** - Ensure complete transaction retrieval (not just subset)
 - [ ] **Add balance directives** - Fetch and include balance directives from PocketSmith
 
+#### 🔧 Quality Gates to Implement
+- [x] **Add mypy to uv dependencies** - Start requiring mypy checks before local commits, and add it to the GitHub PR check workflow. Add it to the README. Start with `--strict`, and add `--ignore-missing-imports` if necessary. Fix any type errors ✅ COMPLETED
+- [x] **Add pre-commit to uv dependencies** - Add current checks to pre-commit: mypy, pytest, bean-check, ruff ✅ COMPLETED
+
 #### 🧪 Testing Requirements
 - [ ] **Write unit tests for bug fixes** - Comprehensive test coverage for all bug fixes
 - [ ] **Write unit tests for new features** - Test coverage for all new functionality
+
+#### 🧪 Missing Unit Tests Analysis (Current: 22 tests)
+
+##### **PocketSmithClient Tests** (4 current tests)
+**Missing:**
+- [ ] **`test_get_accounts()`** - Test fetching user accounts
+- [ ] **`test_get_categories()`** - Test fetching user categories  
+- [ ] **`test_get_transaction_accounts()`** - Test fetching transaction accounts
+- [ ] **`test_make_request_error_handling()`** - Test HTTP error handling (404, 401, 500)
+- [ ] **`test_get_transactions_without_params()`** - Test transactions without date/account filters
+- [ ] **`test_api_response_type_handling()`** - Test handling of non-list responses from API
+
+##### **BeancountConverter Tests** (12 current tests)
+**Missing:**
+- [ ] **`test_get_category_account_transfer()`** - Test transfer category handling
+- [ ] **`test_get_category_account_none()`** - Test null/missing category handling
+- [ ] **`test_get_account_name_credit_card()`** - Test credit card account type mapping to Liabilities
+- [ ] **`test_get_account_name_loan()`** - Test loan account type mapping to Liabilities
+- [ ] **`test_get_account_name_missing_institution()`** - Test accounts without institution data
+- [ ] **`test_convert_transaction_missing_category()`** - Test transactions without categories
+- [ ] **`test_convert_transaction_missing_transaction_account()`** - Test transactions without account data
+- [ ] **`test_convert_transaction_quote_escaping()`** - Test payee/narration with quotes
+- [ ] **`test_convert_transactions_full_integration()`** - Test the full `convert_transactions()` method
+- [ ] **`test_generate_account_declarations_missing_dates()`** - Test accounts without starting_balance_date
+- [ ] **`test_generate_commodity_declarations_empty()`** - Test when no currencies are tracked
+
+##### **BeancountFileWriter Tests** (6 current tests)
+**Missing:**
+- [ ] **`test_init_with_env_var()`** - Test initialization with BEANCOUNT_OUTPUT_DIR environment variable
+- [ ] **`test_write_file_creates_directory()`** - Test that output directory is created if it doesn't exist
+- [ ] **`test_write_file_with_extension_already_present()`** - Test filename handling when .beancount extension already exists
+- [ ] **`test_append_to_nonexistent_file()`** - Test appending to a file that doesn't exist yet
+
+##### **Main Module Tests** (0 current tests) - **HIGH PRIORITY**
+**Missing:**
+- [ ] **`test_main_argument_parsing()`** - Test CLI argument parsing
+- [ ] **`test_main_no_transactions_found()`** - Test behavior when no transactions are returned
+- [ ] **`test_main_api_key_missing()`** - Test error handling for missing API key
+- [ ] **`test_main_api_error_handling()`** - Test handling of API errors
+- [ ] **`test_main_file_write_error()`** - Test handling of file write errors
+- [ ] **`test_main_success_flow()`** - Test successful end-to-end execution (mocked)
+
+##### **Integration Tests** (0 current tests) - **MEDIUM PRIORITY**
+**Missing:**
+- [ ] **`test_end_to_end_conversion()`** - Test full pipeline with mock data
+- [ ] **`test_multiple_currencies()`** - Test handling of multiple currencies in one conversion
+- [ ] **`test_large_transaction_set()`** - Test performance with large datasets
+- [ ] **`test_special_characters_in_data()`** - Test handling of special characters in account names, payees, etc.
+
+##### **Test Priority Summary**
+- **High Priority** (Critical for reliability): Main module tests, error handling tests, missing category/account handling
+- **Medium Priority** (Important for robustness): Additional PocketSmithClient method tests, integration tests, edge cases
+- **Low Priority** (Nice to have): Performance tests, special character handling
+
+**Current Coverage Gaps:**
+- **Main CLI module**: 0% test coverage
+- **Error handling scenarios**: Missing across all modules  
+- **Edge cases**: Missing data, API errors, file system errors
 
 ### ✅ Phase 6: Integration & Deployment (PENDING)
 - [x] **GitHub Actions CI/CD** - Created `.github/workflows/pr-checks.yml`
@@ -117,7 +179,7 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 
 ## Dependencies Added
 - **Main**: `requests`, `python-dotenv`, `beancount`
-- **Dev**: `ruff`, `pytest`
+- **Dev**: `ruff`, `pytest`, `mypy`, `types-requests`, `pre-commit`
 
 ## Features Status
 

@@ -18,24 +18,33 @@ class PocketSmithClient:
 
     def _make_request(
         self, endpoint: str, params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    ) -> Any:
         url = f"{self.base_url}/{endpoint}"
         response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
         return response.json()
 
     def get_user(self) -> Dict[str, Any]:
-        return self._make_request("me")
+        result = self._make_request("me")
+        if isinstance(result, dict):
+            return result
+        return {}
 
     def get_accounts(self) -> List[Dict[str, Any]]:
         user = self.get_user()
-        user_id = user["id"]
-        return self._make_request(f"users/{user_id}/accounts")
+        user_id: int = user["id"]
+        result = self._make_request(f"users/{user_id}/accounts")
+        if isinstance(result, list):
+            return result
+        return []
 
     def get_categories(self) -> List[Dict[str, Any]]:
         user = self.get_user()
-        user_id = user["id"]
-        return self._make_request(f"users/{user_id}/categories")
+        user_id: int = user["id"]
+        result = self._make_request(f"users/{user_id}/categories")
+        if isinstance(result, list):
+            return result
+        return []
 
     def get_transactions(
         self,
@@ -44,9 +53,9 @@ class PocketSmithClient:
         account_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         user = self.get_user()
-        user_id = user["id"]
+        user_id: int = user["id"]
 
-        params = {}
+        params: Dict[str, Any] = {}
         if start_date:
             params["start_date"] = start_date
         if end_date:
@@ -54,9 +63,15 @@ class PocketSmithClient:
         if account_id:
             params["account_id"] = account_id
 
-        return self._make_request(f"users/{user_id}/transactions", params)
+        result = self._make_request(f"users/{user_id}/transactions", params)
+        if isinstance(result, list):
+            return result
+        return []
 
     def get_transaction_accounts(self) -> List[Dict[str, Any]]:
         user = self.get_user()
-        user_id = user["id"]
-        return self._make_request(f"users/{user_id}/transaction_accounts")
+        user_id: int = user["id"]
+        result = self._make_request(f"users/{user_id}/transaction_accounts")
+        if isinstance(result, list):
+            return result
+        return []
