@@ -53,6 +53,8 @@ uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-da
 ### Development Tools
 - `ruff`: Linting and formatting
 - `pytest`: Testing framework
+- `mypy`: Static type checking with strict mode
+- `pre-commit`: Git hooks for quality gates
 - `bean-check`: Beancount file validation (part of beancount package)
 
 ### Commands
@@ -64,14 +66,20 @@ uv run ruff format .
 # Lint code
 uv run ruff check .
 
+# Run type checking
+uv run mypy src/
+
 # Run tests
 uv run pytest
 
 # Validate beancount files
 uv run bean-check output/*.beancount
 
-# Run all checks
-uv run ruff check . && uv run ruff format . && uv run pytest && uv run bean-check output/*.beancount
+# Run pre-commit hooks
+uv run pre-commit run --all-files
+
+# Run all checks manually
+uv run ruff check . && uv run ruff format . && uv run mypy src/ && uv run pytest && uv run bean-check output/*.beancount
 ```
 
 ## Project Structure

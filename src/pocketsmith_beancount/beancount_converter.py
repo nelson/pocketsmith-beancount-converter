@@ -1,14 +1,14 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import re
 
 
 class BeancountConverter:
-    def __init__(self):
-        self.account_mapping = {}
-        self.category_mapping = {}
-        self.currencies = set()
+    def __init__(self) -> None:
+        self.account_mapping: Dict[int, str] = {}
+        self.category_mapping: Dict[int, str] = {}
+        self.currencies: set[str] = set()
 
     def _sanitize_account_name(self, name: str) -> str:
         # Strip initial underscores and convert spaces to hyphens
@@ -42,7 +42,7 @@ class BeancountConverter:
             full_account = f"{account_type}:{sanitized_institution}:{sanitized_account}"
             self.account_mapping[account_id] = full_account
 
-        return self.account_mapping[account_id]
+        return str(self.account_mapping[account_id])
 
     def _get_category_account(self, category: Dict[str, Any]) -> str:
         if not category:
@@ -61,7 +61,7 @@ class BeancountConverter:
 
             self.category_mapping[category["id"]] = account_name
 
-        return self.category_mapping[category["id"]]
+        return str(self.category_mapping[category["id"]])
 
     def generate_account_declarations(
         self, transaction_accounts: List[Dict[str, Any]]
@@ -97,7 +97,7 @@ class BeancountConverter:
         return sorted(declarations)
 
     def generate_category_declarations(
-        self, categories: List[Dict[str, Any]], open_date: str = None
+        self, categories: List[Dict[str, Any]], open_date: Optional[str] = None
     ) -> List[str]:
         declarations = []
         category_names = set()
@@ -160,7 +160,10 @@ class BeancountConverter:
         account_name = self._get_account_name(transaction_account)
 
         category = transaction.get("category")
-        category_account = self._get_category_account(category)
+        if category is not None:
+            category_account = self._get_category_account(category)
+        else:
+            category_account = "Expenses:Uncategorized"
 
         lines = [f'{date} * "{payee}" "{narration}"']
 
@@ -182,7 +185,7 @@ class BeancountConverter:
         self,
         transactions: List[Dict[str, Any]],
         transaction_accounts: List[Dict[str, Any]],
-        categories: List[Dict[str, Any]] = None,
+        categories: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         account_dict = {acc["id"]: acc for acc in transaction_accounts}
 
@@ -211,7 +214,7 @@ class BeancountConverter:
 
         if categories:
             category_declarations = self.generate_category_declarations(
-                categories, earliest_date
+                categories, earliest_date or None
             )
             if category_declarations:
                 beancount_entries.extend(category_declarations)

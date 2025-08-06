@@ -7,7 +7,7 @@ from .beancount_converter import BeancountConverter
 from .file_writer import BeancountFileWriter
 
 
-def main():
+def main() -> None:
     load_dotenv()
 
     parser = argparse.ArgumentParser(

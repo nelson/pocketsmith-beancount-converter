@@ -6,9 +6,8 @@ from typing import Optional
 
 class BeancountFileWriter:
     def __init__(self, output_dir: Optional[str] = None):
-        self.output_dir = Path(
-            output_dir or os.getenv("BEANCOUNT_OUTPUT_DIR", "./output")
-        )
+        output_path = output_dir or os.getenv("BEANCOUNT_OUTPUT_DIR") or "./output"
+        self.output_dir = Path(output_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def write_beancount_file(self, content: str, filename: Optional[str] = None) -> str:
