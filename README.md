@@ -4,10 +4,21 @@ A Python tool to retrieve transaction data from PocketSmith and convert it to Be
 
 ## Overview
 
-This project provides a seamless way to:
-- Fetch transaction data from PocketSmith via their API
-- Convert transactions to Beancount format
+This project provides a comprehensive way to:
+- Fetch transaction data from PocketSmith via their API with pagination support
+- Convert transactions to Beancount format with proper account mapping
+- Include PocketSmith metadata, labels as tags, and review flags
+- Validate output with bean-check integration
 - Store the data locally for accounting and analysis
+
+## Features
+
+- **Complete data sync**: Fetches all transactions, accounts, categories, and balances
+- **Proper formatting**: Uses correct commodity capitalization and account names
+- **Rich metadata**: Includes PocketSmith IDs, labels as tags, and review flags
+- **Validation**: Integrated bean-check validation for output files
+- **Pagination**: Handles large datasets with automatic pagination
+- **CLI interface**: Date range filtering and flexible configuration
 
 ## Setup
 
@@ -35,12 +46,14 @@ python -m pocketsmith_beancount.main --start-date 2024-01-01 --end-date 2024-12-
 ## Development
 
 ### Dependencies
-- `pocketsmith-api`: PocketSmith API client
-- `beancount`: Beancount library for financial data
+- `requests`: HTTP client for PocketSmith API
+- `python-dotenv`: Environment variable management
+- `beancount`: Beancount library for financial data validation
 
 ### Development Tools
 - `ruff`: Linting and formatting
 - `pytest`: Testing framework
+- `bean-check`: Beancount file validation (part of beancount package)
 
 ### Commands
 
@@ -54,8 +67,11 @@ uv run ruff check .
 # Run tests
 uv run pytest
 
+# Validate beancount files
+uv run bean-check output/*.beancount
+
 # Run all checks
-uv run ruff check . && uv run ruff format . && uv run pytest
+uv run ruff check . && uv run ruff format . && uv run pytest && uv run bean-check output/*.beancount
 ```
 
 ## Project Structure
