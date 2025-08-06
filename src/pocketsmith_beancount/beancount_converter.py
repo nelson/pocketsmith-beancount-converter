@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 import re
@@ -123,6 +123,46 @@ class BeancountConverter:
             )
         return declarations
 
+    def generate_balance_directives(
+        self,
+        account_balances: Dict[int, List[Dict[str, Any]]],
+        transaction_accounts: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Generate balance directives from PocketSmith account balance history."""
+        directives = []
+        account_dict = {acc["id"]: acc for acc in transaction_accounts}
+
+        for account_id, balances in account_balances.items():
+            if account_id not in account_dict:
+                continue
+
+            account = account_dict[account_id]
+            account_name = self._get_account_name(account)
+            currency = account.get("currency_code", "USD").upper()
+
+            # Sort balances by date and take the most recent ones
+            sorted_balances = sorted(balances, key=lambda b: b.get("date", ""))
+
+            # Add balance directives for key dates (e.g., month-end balances)
+            for balance in sorted_balances[-5:]:  # Last 5 balance entries
+                balance_date = balance.get("date")
+                balance_amount = balance.get("balance")
+
+                if balance_date and balance_amount is not None:
+                    # Parse date and add one day for balance directive
+                    balance_datetime = datetime.fromisoformat(
+                        balance_date.replace("Z", "+00:00")
+                    )
+                    next_day = (balance_datetime + timedelta(days=1)).strftime(
+                        "%Y-%m-%d"
+                    )
+
+                    directives.append(
+                        f"{next_day} balance {account_name} {Decimal(str(balance_amount))} {currency}"
+                    )
+
+        return sorted(directives)
+
     def convert_transaction(
         self, transaction: Dict[str, Any], accounts: Dict[int, Dict[str, Any]]
     ) -> str:
@@ -143,6 +183,19 @@ class BeancountConverter:
             payee = "Unknown"
         if not narration:
             narration = ""
+
+        # Convert labels to tags
+        labels = transaction.get("labels", [])
+        tags = ""
+        if labels:
+            # Sanitize labels for beancount tags (alphanumeric, hyphens, underscores only)
+            sanitized_labels = []
+            for label in labels:
+                sanitized = re.sub(r"[^a-zA-Z0-9\-_]", "-", label).strip("-")
+                if sanitized:
+                    sanitized_labels.append(sanitized)
+            if sanitized_labels:
+                tags = " " + " ".join(f"#{tag}" for tag in sanitized_labels)
 
         # Use transaction amount and get currency from transaction account
         amount = Decimal(str(transaction["amount"]))
@@ -165,7 +218,10 @@ class BeancountConverter:
         else:
             category_account = "Expenses:Uncategorized"
 
-        lines = [f'{date} * "{payee}" "{narration}"']
+        # Check for needs_review flag
+        flag = "!" if transaction.get("needs_review", False) else "*"
+
+        lines = [f'{date} {flag} "{payee}" "{narration}"{tags}']
 
         # Add transaction ID metadata
         transaction_id = transaction.get("id")
@@ -186,6 +242,7 @@ class BeancountConverter:
         transactions: List[Dict[str, Any]],
         transaction_accounts: List[Dict[str, Any]],
         categories: Optional[List[Dict[str, Any]]] = None,
+        account_balances: Optional[Dict[int, List[Dict[str, Any]]]] = None,
     ) -> str:
         account_dict = {acc["id"]: acc for acc in transaction_accounts}
 
@@ -201,6 +258,14 @@ class BeancountConverter:
 
         beancount_entries = []
 
+        # Process transactions first to collect currencies
+        transaction_entries = []
+        for transaction in sorted(transactions, key=lambda t: t["date"]):
+            entry = self.convert_transaction(transaction, account_dict)
+            if entry:
+                transaction_entries.append(entry)
+
+        # Now generate commodity declarations after currencies are collected
         commodity_declarations = self.generate_commodity_declarations()
         if commodity_declarations:
             beancount_entries.extend(commodity_declarations)
@@ -230,13 +295,16 @@ class BeancountConverter:
             beancount_entries.append(uncategorized_declaration)
             beancount_entries.append("")
 
-        transaction_entries = []
-        for transaction in sorted(transactions, key=lambda t: t["date"]):
-            entry = self.convert_transaction(transaction, account_dict)
-            if entry:
-                transaction_entries.append(entry)
-
         if transaction_entries:
             beancount_entries.extend(transaction_entries)
+
+        # Add balance directives if provided
+        if account_balances:
+            balance_directives = self.generate_balance_directives(
+                account_balances, transaction_accounts
+            )
+            if balance_directives:
+                beancount_entries.append("")
+                beancount_entries.extend(balance_directives)
 
         return "\n\n".join(beancount_entries)
