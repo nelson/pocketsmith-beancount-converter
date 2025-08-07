@@ -236,7 +236,7 @@ class TestMain:
                     mock_client = Mock()
                     mock_client.get_user.return_value = {"login": "test_user"}
                     mock_client.get_transaction_accounts.return_value = [
-                        {"id": 1, "name": "Checking"}
+                        {"id": 1, "name": "Checking", "account_id": 101}
                     ]
                     mock_client.get_categories.return_value = [
                         {"id": 1, "title": "Groceries"}
@@ -245,6 +245,7 @@ class TestMain:
                         {"id": 1, "amount": "10.00"},
                         {"id": 2, "amount": "20.00"},
                     ]
+                    mock_client.get_account_balances.return_value = []
                     mock_client_class.return_value = mock_client
 
                     mock_converter = Mock()
@@ -273,8 +274,244 @@ class TestMain:
                     mock_print.assert_any_call("Output directory: /output")
 
                     # Verify the conversion was called with correct parameters
-                    mock_converter.convert_transactions.assert_called_once_with(
-                        [{"id": 1, "amount": "10.00"}, {"id": 2, "amount": "20.00"}],
-                        [{"id": 1, "name": "Checking"}],
-                        [{"id": 1, "title": "Groceries"}],
+                    mock_converter.convert_transactions.assert_called_once()
+                    call_args = mock_converter.convert_transactions.call_args
+                    assert (
+                        len(call_args[0]) == 4
+                    )  # transactions, accounts, categories, balances
+                    assert len(call_args[0][0]) == 2  # 2 transactions
+                    assert len(call_args[0][1]) == 1  # 1 account
+                    assert len(call_args[0][2]) == 1  # 1 category
+                    assert isinstance(call_args[0][3], dict)  # balances dict
+
+    @patch("src.pocketsmith_beancount.main.load_dotenv")
+    @patch("src.pocketsmith_beancount.main.argparse.ArgumentParser.parse_args")
+    @patch("builtins.print")
+    def test_main_with_balance_fetching(
+        self, mock_print, mock_parse_args, mock_load_dotenv
+    ) -> None:
+        """Test successful balance extraction from transaction accounts"""
+        mock_args = Mock()
+        mock_args.start_date = "2024-01-01"
+        mock_args.end_date = "2024-01-31"
+        mock_args.output_dir = None
+        mock_args.filename = None
+        mock_args.account_id = None
+        mock_parse_args.return_value = mock_args
+
+        with patch(
+            "src.pocketsmith_beancount.main.PocketSmithClient"
+        ) as mock_client_class:
+            with patch(
+                "src.pocketsmith_beancount.main.BeancountConverter"
+            ) as mock_converter_class:
+                with patch(
+                    "src.pocketsmith_beancount.main.BeancountFileWriter"
+                ) as mock_writer_class:
+                    # Mock successful API calls with balance data in transaction accounts
+                    mock_client = Mock()
+                    mock_client.get_user.return_value = {"login": "test_user"}
+                    mock_client.get_transaction_accounts.return_value = [
+                        {
+                            "id": 1,
+                            "name": "Checking",
+                            "account_id": 101,
+                            "current_balance": "1000.00",
+                            "current_balance_date": "2024-01-01T00:00:00Z",
+                        },
+                        {
+                            "id": 2,
+                            "name": "Savings",
+                            "account_id": 102,
+                            "current_balance": "500.00",
+                            "current_balance_date": "2024-01-01T00:00:00Z",
+                        },
+                    ]
+                    mock_client.get_categories.return_value = [
+                        {"id": 1, "title": "Groceries"}
+                    ]
+                    mock_client.get_transactions.return_value = [
+                        {"id": 1, "amount": "10.00"}
+                    ]
+                    mock_client_class.return_value = mock_client
+
+                    mock_converter = Mock()
+                    mock_converter.convert_transactions.return_value = (
+                        "beancount content"
                     )
+                    mock_converter_class.return_value = mock_converter
+
+                    mock_writer = Mock()
+                    mock_writer.write_beancount_file.return_value = (
+                        "/output/transactions.beancount"
+                    )
+                    mock_writer.get_output_directory.return_value = "/output"
+                    mock_writer_class.return_value = mock_writer
+
+                    main()
+
+                    # Verify balance extraction message
+                    mock_print.assert_any_call("Extracting account balances...")
+                    mock_print.assert_any_call("Extracted balances for 2 accounts")
+
+                    # Verify conversion was called with balance data
+                    mock_converter.convert_transactions.assert_called_once()
+                    call_args = mock_converter.convert_transactions.call_args
+                    assert (
+                        len(call_args[0]) == 4
+                    )  # transactions, accounts, categories, balances
+                    assert len(call_args[0][0]) == 1  # 1 transaction
+                    assert len(call_args[0][1]) == 2  # 2 accounts
+                    assert len(call_args[0][2]) == 1  # 1 category
+                    balances_dict = call_args[0][3]
+                    assert len(balances_dict) == 2  # 2 accounts with balances
+                    assert 1 in balances_dict and 2 in balances_dict
+
+    @patch("src.pocketsmith_beancount.main.load_dotenv")
+    @patch("src.pocketsmith_beancount.main.argparse.ArgumentParser.parse_args")
+    @patch("builtins.print")
+    def test_main_balance_fetch_error(
+        self, mock_print, mock_parse_args, mock_load_dotenv
+    ) -> None:
+        """Test handling of missing balance data in transaction accounts"""
+        mock_args = Mock()
+        mock_args.start_date = "2024-01-01"
+        mock_args.end_date = "2024-01-31"
+        mock_args.output_dir = None
+        mock_args.filename = None
+        mock_args.account_id = None
+        mock_parse_args.return_value = mock_args
+
+        with patch(
+            "src.pocketsmith_beancount.main.PocketSmithClient"
+        ) as mock_client_class:
+            with patch(
+                "src.pocketsmith_beancount.main.BeancountConverter"
+            ) as mock_converter_class:
+                with patch(
+                    "src.pocketsmith_beancount.main.BeancountFileWriter"
+                ) as mock_writer_class:
+                    # Mock API calls with missing balance data
+                    mock_client = Mock()
+                    mock_client.get_user.return_value = {"login": "test_user"}
+                    mock_client.get_transaction_accounts.return_value = [
+                        {
+                            "id": 1,
+                            "name": "Checking",
+                            "account_id": 101,
+                        }  # No balance fields
+                    ]
+                    mock_client.get_categories.return_value = [
+                        {"id": 1, "title": "Groceries"}
+                    ]
+                    mock_client.get_transactions.return_value = [
+                        {"id": 1, "amount": "10.00"}
+                    ]
+                    mock_client_class.return_value = mock_client
+
+                    mock_converter = Mock()
+                    mock_converter.convert_transactions.return_value = (
+                        "beancount content"
+                    )
+                    mock_converter_class.return_value = mock_converter
+
+                    mock_writer = Mock()
+                    mock_writer.write_beancount_file.return_value = (
+                        "/output/transactions.beancount"
+                    )
+                    mock_writer.get_output_directory.return_value = "/output"
+                    mock_writer_class.return_value = mock_writer
+
+                    main()
+
+                    # Verify balance extraction message
+                    mock_print.assert_any_call("Extracting account balances...")
+                    mock_print.assert_any_call("Extracted balances for 0 accounts")
+
+                    # Verify conversion was called with empty balance data
+                    mock_converter.convert_transactions.assert_called_once()
+                    call_args = mock_converter.convert_transactions.call_args
+                    assert (
+                        len(call_args[0]) == 4
+                    )  # transactions, accounts, categories, balances
+                    balances_dict = call_args[0][3]
+                    assert len(balances_dict) == 0  # Empty due to missing data
+
+    @patch("src.pocketsmith_beancount.main.load_dotenv")
+    @patch("src.pocketsmith_beancount.main.argparse.ArgumentParser.parse_args")
+    @patch("builtins.print")
+    def test_main_balance_fetch_partial_failure(
+        self, mock_print, mock_parse_args, mock_load_dotenv
+    ) -> None:
+        """Test when some accounts have balance data and others don't"""
+        mock_args = Mock()
+        mock_args.start_date = "2024-01-01"
+        mock_args.end_date = "2024-01-31"
+        mock_args.output_dir = None
+        mock_args.filename = None
+        mock_args.account_id = None
+        mock_parse_args.return_value = mock_args
+
+        with patch(
+            "src.pocketsmith_beancount.main.PocketSmithClient"
+        ) as mock_client_class:
+            with patch(
+                "src.pocketsmith_beancount.main.BeancountConverter"
+            ) as mock_converter_class:
+                with patch(
+                    "src.pocketsmith_beancount.main.BeancountFileWriter"
+                ) as mock_writer_class:
+                    # Mock API calls with partial balance data
+                    mock_client = Mock()
+                    mock_client.get_user.return_value = {"login": "test_user"}
+                    mock_client.get_transaction_accounts.return_value = [
+                        {
+                            "id": 1,
+                            "name": "Checking",
+                            "account_id": 101,
+                            "current_balance": "1000.00",
+                            "current_balance_date": "2024-01-01T00:00:00Z",
+                        },
+                        {
+                            "id": 2,
+                            "name": "Savings",
+                            "account_id": 102,
+                        },  # No balance data
+                    ]
+                    mock_client.get_categories.return_value = [
+                        {"id": 1, "title": "Groceries"}
+                    ]
+                    mock_client.get_transactions.return_value = [
+                        {"id": 1, "amount": "10.00"}
+                    ]
+                    mock_client_class.return_value = mock_client
+
+                    mock_converter = Mock()
+                    mock_converter.convert_transactions.return_value = (
+                        "beancount content"
+                    )
+                    mock_converter_class.return_value = mock_converter
+
+                    mock_writer = Mock()
+                    mock_writer.write_beancount_file.return_value = (
+                        "/output/transactions.beancount"
+                    )
+                    mock_writer.get_output_directory.return_value = "/output"
+                    mock_writer_class.return_value = mock_writer
+
+                    main()
+
+                    # Verify balance extraction message
+                    mock_print.assert_any_call("Extracting account balances...")
+                    mock_print.assert_any_call("Extracted balances for 1 accounts")
+
+                    # Verify conversion was called with partial balance data
+                    mock_converter.convert_transactions.assert_called_once()
+                    call_args = mock_converter.convert_transactions.call_args
+                    assert (
+                        len(call_args[0]) == 4
+                    )  # transactions, accounts, categories, balances
+                    balances_dict = call_args[0][3]
+                    assert len(balances_dict) == 1  # Only 1 account succeeded
+                    assert 1 in balances_dict  # Account 1 succeeded
+                    assert 2 not in balances_dict  # Account 2 failed
