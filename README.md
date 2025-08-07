@@ -144,8 +144,14 @@ This checklist should be followed for every code contribution submitted to GitHu
 - [ ] Summarise changes from beginning of session
 - [ ] Create GitHub issue
 - [ ] Create well named branch
-- [ ] Commit changes with message that begins with "<type> #[ISSUE_NUMBER]: [SUMMARY]" where <type> is documented in Conventional Commits (https://www.conventionalcommits.org) and ISSUE NUMBER is the github issue number
-- [ ] Create GitHub pull request based on this branch and link to the GitHub issue by adding "Closes #[ISSUE_NUMBER] at the end of commit message
+- [ ] Commit changes with message that follows this exact format:
+  - **First line**: `<type>: #[ISSUE_NUMBER] [SUMMARY]`
+    - `<type>` follows [Conventional Commits](https://www.conventionalcommits.org) (feat, fix, docs, etc.)
+    - `[ISSUE_NUMBER]` is the GitHub issue number (e.g., #17)
+    - `[SUMMARY]` is a concise one-line description
+  - **Body**: Detailed description with bullet points of changes
+  - **Final line**: `Closes #[ISSUE_NUMBER]`
+- [ ] Create GitHub pull request based on this branch and link to the GitHub issue
 - [ ] Poll for the pull request status
   - If successful, pull and checkout master, and clean up branches
   - If failed, don't pull, stay on the branch and try to fix any issues
