@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import List, Dict, Any, Optional
+from decimal import Decimal, InvalidOperation
+from typing import List, Dict, Any, Optional, Union
 import re
+import pytz
 
 
 class BeancountConverter:
@@ -9,6 +10,47 @@ class BeancountConverter:
         self.account_mapping: Dict[int, str] = {}
         self.category_mapping: Dict[int, str] = {}
         self.currencies: set[str] = set()
+
+    def _convert_id_to_decimal(self, id_value: Any) -> Optional[Decimal]:
+        """Convert ID to decimal number with error handling."""
+        if id_value is None:
+            return None
+
+        try:
+            # Handle both string and numeric IDs
+            if isinstance(id_value, str):
+                # Remove any non-numeric characters except decimal point
+                cleaned_id = re.sub(r"[^\d.]", "", id_value)
+                if not cleaned_id:
+                    return None
+                return Decimal(cleaned_id)
+            else:
+                return Decimal(str(id_value))
+        except (InvalidOperation, ValueError):
+            # Log warning but don't fail - return None for invalid IDs
+            return None
+
+    def _convert_to_aest(self, timestamp: Union[str, datetime]) -> str:
+        """Convert timestamp to Australian Eastern Standard Time."""
+        try:
+            # Handle datetime objects
+            if isinstance(timestamp, datetime):
+                dt = timestamp
+            else:
+                # Handle string timestamps
+                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+
+            # Convert to AEST (UTC+10) or AEDT (UTC+11) depending on date
+            aest_tz = pytz.timezone("Australia/Sydney")
+            aest_dt = dt.astimezone(aest_tz)
+
+            # Return formatted string with milliseconds
+            return aest_dt.strftime("%b %d %H:%M:%S.%f")[
+                :-3
+            ]  # Remove last 3 digits for milliseconds
+        except (ValueError, AttributeError):
+            # Fallback to string representation
+            return str(timestamp)
 
     def _sanitize_account_name(self, name: str) -> str:
         # Strip initial underscores and convert spaces to hyphens
@@ -64,7 +106,9 @@ class BeancountConverter:
         return str(self.category_mapping[category["id"]])
 
     def generate_account_declarations(
-        self, transaction_accounts: List[Dict[str, Any]]
+        self,
+        transaction_accounts: List[Dict[str, Any]],
+        earliest_date: Optional[str] = None,
     ) -> List[str]:
         declarations = []
         account_names = set()
@@ -86,15 +130,51 @@ class BeancountConverter:
                         open_date.replace("Z", "+00:00")
                     ).strftime("%Y-%m-%d")
                 else:
-                    open_date = datetime.now().strftime("%Y-%m-%d")
+                    # Use earliest transaction date if available, otherwise today
+                    open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
 
-                metadata = f'\n    id: "{account_id}"' if account_id else ""
+                # Convert account ID to decimal
+                decimal_id = self._convert_id_to_decimal(account_id)
+                metadata = f"\n    id: {decimal_id}" if decimal_id is not None else ""
                 declarations.append(
                     f"{open_date} open {account_name} {currency}{metadata}"
                 )
                 account_names.add(account_name)
 
         return sorted(declarations)
+
+    def generate_starting_balance_directives(
+        self, transaction_accounts: List[Dict[str, Any]]
+    ) -> List[str]:
+        """Generate starting balance directives from PocketSmith account data."""
+        directives = []
+
+        for account in transaction_accounts:
+            account_name = self._get_account_name(account)
+            currency = account.get("currency_code", "USD").upper()
+
+            # Look for starting balance data
+            starting_balance = account.get("starting_balance")
+            starting_balance_date = account.get("starting_balance_date")
+
+            if starting_balance is not None and starting_balance_date:
+                try:
+                    # Parse and format the date
+                    balance_date = datetime.fromisoformat(
+                        starting_balance_date.replace("Z", "+00:00")
+                    ).strftime("%Y-%m-%d")
+
+                    # Convert balance to decimal
+                    balance_amount = Decimal(str(starting_balance))
+
+                    directives.append(
+                        f"{balance_date} balance {account_name} {balance_amount} {currency}"
+                    )
+                except (ValueError, InvalidOperation):
+                    # Skip invalid balance data
+                    continue
+
+        return sorted(directives)
 
     def generate_category_declarations(
         self, categories: List[Dict[str, Any]], open_date: Optional[str] = None
@@ -109,7 +189,9 @@ class BeancountConverter:
             category_account = self._get_category_account(category)
             if category_account not in category_names:
                 category_id = category.get("id")
-                metadata = f'\n    id: "{category_id}"' if category_id else ""
+                # Convert category ID to decimal
+                decimal_id = self._convert_id_to_decimal(category_id)
+                metadata = f"\n    id: {decimal_id}" if decimal_id is not None else ""
                 declarations.append(f"{open_date} open {category_account}{metadata}")
                 category_names.add(category_account)
 
@@ -225,8 +307,25 @@ class BeancountConverter:
 
         # Add transaction ID metadata
         transaction_id = transaction.get("id")
-        if transaction_id:
-            lines.append(f'    id: "{transaction_id}"')
+        decimal_id = self._convert_id_to_decimal(transaction_id)
+        if decimal_id is not None:
+            lines.append(f"    id: {decimal_id}")
+
+        # Add last modified datetime metadata
+        updated_at = transaction.get("updated_at")
+        if updated_at:
+            aest_timestamp = self._convert_to_aest(updated_at)
+            lines.append(f'    last_modified: "{aest_timestamp}"')
+
+        # Add closing balance metadata if available
+        closing_balance = transaction.get("closing_balance")
+        if closing_balance is not None:
+            try:
+                balance_decimal = Decimal(str(closing_balance))
+                lines.append(f"    closing_balance: {balance_decimal}")
+            except (InvalidOperation, ValueError):
+                # Skip invalid balance data
+                pass
 
         if amount > 0:
             lines.append(f"  {account_name}  {amount} {currency}")
@@ -272,7 +371,9 @@ class BeancountConverter:
             beancount_entries.append("")
 
         # Use authoritative transaction accounts for declarations
-        account_declarations = self.generate_account_declarations(transaction_accounts)
+        account_declarations = self.generate_account_declarations(
+            transaction_accounts, earliest_date
+        )
         if account_declarations:
             beancount_entries.extend(account_declarations)
             beancount_entries.append("")
@@ -308,3 +409,38 @@ class BeancountConverter:
                 beancount_entries.extend(balance_directives)
 
         return "\n\n".join(beancount_entries)
+
+    def convert_monthly_transactions(
+        self,
+        transactions: List[Dict[str, Any]],
+        transaction_accounts: List[Dict[str, Any]],
+    ) -> str:
+        """Convert transactions for a single month without declarations."""
+        if not transactions:
+            return ""
+
+        account_dict = {acc["id"]: acc for acc in transaction_accounts}
+
+        # Add header comment with month/year
+        first_transaction_date = datetime.fromisoformat(
+            transactions[0]["date"].replace("Z", "+00:00")
+        )
+        month_year = first_transaction_date.strftime("%B %Y")
+
+        content_lines = [
+            f"; Transactions for {month_year}",
+            f"; Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+        ]
+
+        # Convert transactions
+        transaction_entries = []
+        for transaction in sorted(transactions, key=lambda t: t["date"]):
+            entry = self.convert_transaction(transaction, account_dict)
+            if entry:
+                transaction_entries.append(entry)
+
+        if transaction_entries:
+            content_lines.extend(transaction_entries)
+
+        return "\n\n".join(content_lines)

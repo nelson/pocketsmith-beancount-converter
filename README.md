@@ -19,6 +19,10 @@ This project provides a comprehensive way to:
 - **Validation**: Integrated bean-check validation for output files
 - **Pagination**: Handles large datasets with automatic pagination
 - **CLI interface**: Date range filtering and flexible configuration
+- **Hierarchical file structure**: Organize transactions by year/month with top-level declarations
+- **Transaction changelog**: Track changes with compact AEST timestamped logs
+- **Enhanced metadata**: Last modified timestamps, closing balances, and decimal ID format
+- **Incremental updates**: Support for archive-based updates with change detection
 
 ## Setup
 
@@ -36,11 +40,17 @@ This project provides a comprehensive way to:
 ## Usage
 
 ```bash
-# Fetch and convert transactions
+# Fetch and convert transactions (single file)
 uv run python -m src.pocketsmith_beancount.main
 
 # Run with specific date range
 uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-date 2024-12-31
+
+# Use hierarchical file structure (recommended for large datasets)
+uv run python -m src.pocketsmith_beancount.main --hierarchical
+
+# Specify custom output directory
+uv run python -m src.pocketsmith_beancount.main --output-dir /path/to/output --hierarchical
 ```
 
 ## Development
@@ -49,6 +59,7 @@ uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-da
 - `requests`: HTTP client for PocketSmith API
 - `python-dotenv`: Environment variable management
 - `beancount`: Beancount library for financial data validation
+- `pytz`: Timezone handling for AEST timestamps
 
 ### Development Tools
 - `ruff`: Linting and formatting
@@ -73,13 +84,13 @@ uv run mypy src/
 uv run pytest
 
 # Validate beancount files
-uv run bean-check output/*.beancount
+uv run bean-check output/main.beancount
 
 # Run pre-commit hooks
 uv run pre-commit run --all-files
 
 # Run all checks manually
-uv run ruff check . && uv run ruff format . && uv run mypy src/ && uv run pytest && uv run bean-check output/*.beancount
+uv run ruff check . && uv run ruff format . && uv run mypy src/ && uv run pytest && uv run bean-check output/main.beancount
 ```
 
 ## Project Structure
@@ -91,12 +102,21 @@ uv run ruff check . && uv run ruff format . && uv run mypy src/ && uv run pytest
 │       ├── main.py              # CLI entry point
 │       ├── pocketsmith_client.py # PocketSmith API client
 │       ├── beancount_converter.py # Transaction converter
-│       └── file_writer.py       # Local file operations
+│       ├── file_writer.py       # Local file operations
+│       └── changelog.py         # Transaction change tracking
 ├── tests/
 │   ├── __init__.py
 │   ├── test_pocketsmith_client.py
 │   ├── test_beancount_converter.py
-│   └── test_file_writer.py
+│   ├── test_file_writer.py
+│   ├── test_main.py
+│   └── test_integration.py
+├── output/                      # Generated files (hierarchical mode)
+│   ├── main.beancount          # Top-level declarations and includes
+│   ├── changelog.txt           # Transaction change log
+│   └── 2024/                   # Yearly folders
+│       ├── 2024-01.beancount   # Monthly transaction files
+│       └── 2024-02.beancount
 ├── pyproject.toml
 └── README.md
 ```
@@ -119,11 +139,14 @@ You'll need a PocketSmith API key. Get one from:
 
 ### Contribution Checklist
 
+This checklist should be followed for every code contribution submitted to GitHub.
+
 - [ ] Summarise changes from beginning of session
 - [ ] Create GitHub issue
 - [ ] Create well named branch
 - [ ] Commit changes with message that begins with "<type> #[ISSUE_NUMBER]: [SUMMARY]" where <type> is documented in Conventional Commits (https://www.conventionalcommits.org) and ISSUE NUMBER is the github issue number
-- [ ] Create GitHub pull request based on this branch
+- [ ] Create GitHub pull request based on this branch and link to the GitHub issue by adding "Closes #[ISSUE_NUMBER] at the end of commit message
 - [ ] Poll for the pull request status
   - If successful, pull and checkout master, and clean up branches
   - If failed, don't pull, stay on the branch and try to fix any issues
+

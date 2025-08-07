@@ -113,8 +113,8 @@ class TestIntegration:
             )  # Salary (Jan 1) before Groceries (Jan 15)
 
             # Should contain transaction metadata
-            assert 'id: "1"' in content
-            assert 'id: "2"' in content
+            assert "id: 1" in content
+            assert "id: 2" in content
 
     def test_multiple_currencies(self):
         """Test handling of multiple currencies in one conversion"""

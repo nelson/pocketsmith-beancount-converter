@@ -75,58 +75,59 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 
 
 
-### ✅ Phase 6: Advanced File Management & Archive Features (PENDING)
+### ✅ Phase 6: Advanced File Management & Archive Features (COMPLETED)
 
 #### 📁 Multi-File Beancount Structure
-- [ ] **Implement hierarchical file organization** - Create top-level beancount file with account declarations, category declarations, and includes
-- [ ] **Monthly transaction files** - Organize transactions into one file per month (YYYY-MM.beancount)
-- [ ] **Yearly folder structure** - Place monthly files in calendar year folders (e.g., 2024/2024-01.beancount)
-- [ ] **Update file writer** - Modify BeancountFileWriter to support multi-file output structure
-- [ ] **Add include statements** - Generate proper include directives in top-level file
+- [x] **Implement hierarchical file organization** - Create top-level beancount file with account declarations, category declarations, and includes ✅ COMPLETED
+- [x] **Monthly transaction files** - Organize transactions into one file per month (YYYY-MM.beancount) ✅ COMPLETED
+- [x] **Yearly folder structure** - Place monthly files in calendar year folders (e.g., 2024/2024-01.beancount) ✅ COMPLETED
+- [x] **Update file writer** - Modify BeancountFileWriter to support multi-file output structure ✅ COMPLETED
+- [x] **Add include statements** - Generate proper include directives in top-level file ✅ COMPLETED
 
 #### 🔢 Data Type Improvements  
-- [ ] **Convert IDs to decimal numbers** - Change transaction and account IDs from strings to decimal numbers in beancount output
-- [ ] **Update metadata handling** - Ensure all ID fields use decimal representation consistently
-- [ ] **Validate decimal conversion** - Add error handling for invalid ID formats
+- [x] **Convert IDs to decimal numbers** - Change transaction and account IDs from strings to decimal numbers in beancount output ✅ COMPLETED
+- [x] **Update metadata handling** - Ensure all ID fields use decimal representation consistently ✅ COMPLETED
+- [x] **Validate decimal conversion** - Add error handling for invalid ID formats ✅ COMPLETED
 
 #### 💰 Enhanced Account Declarations
-- [ ] **Use starting balance data** - Look for starting_balance and starting_balance_date in transaction account objects
-- [ ] **Account declaration dates** - Use starting_balance_date as the account declaration date when available
-- [ ] **Starting balance directives** - Include starting balance declarations in top-level beancount file
-- [ ] **Handle missing balance data** - Graceful fallback when starting balance information is not available
+- [x] **Use starting balance data** - Look for starting_balance and starting_balance_date in transaction account objects ✅ COMPLETED
+- [x] **Account declaration dates** - Use starting_balance_date as the account declaration date when available ✅ COMPLETED
+- [x] **Starting balance directives** - Include starting balance declarations in top-level beancount file ✅ COMPLETED
+- [x] **Handle missing balance data** - Graceful fallback when starting balance information is not available ✅ COMPLETED
 
 #### 📝 Transaction Changelog
-- [ ] **Implement compact changelog** - Create changelog file recording transaction operations
-- [ ] **Single-line format** - Use compact format instead of JSON for space efficiency
-- [ ] **AEST timestamps** - Include millisecond-resolution timestamps in Australian Eastern Standard Time
-- [ ] **Operation tracking** - Record create, modify, delete operations for transactions
-- [ ] **Field-level changes** - For modifications, specify which field changed with old and new values
-- [ ] **Example format** - `Aug 7 06:47:42.774 MODIFY 856546480 tags: [] -> #restaurants`
+- [x] **Implement compact changelog** - Create changelog file recording transaction operations ✅ COMPLETED
+- [x] **Single-line format** - Use compact format instead of JSON for space efficiency ✅ COMPLETED
+- [x] **AEST timestamps** - Include millisecond-resolution timestamps in Australian Eastern Standard Time ✅ COMPLETED
+- [x] **Operation tracking** - Record create, modify, delete operations for transactions ✅ COMPLETED
+- [x] **Field-level changes** - For modifications, specify which field changed with old and new values ✅ COMPLETED
+- [x] **Example format** - `Aug 7 06:47:42.774 MODIFY 856546480 tags: [] -> #restaurants` ✅ COMPLETED
 
 #### 🕒 Transaction Metadata Enhancements
-- [ ] **Last modified datetime** - Add metadata field using updated_at from transaction object
-- [ ] **AEST timezone handling** - Convert timestamps to Australian Eastern Standard Time
-- [ ] **Datetime format handling** - Try datetime.datetime first, fallback to string if needed
-- [ ] **Closing balance metadata** - Add closing_balance field as decimal number for future balance assertions
+- [x] **Last modified datetime** - Add metadata field using updated_at from transaction object ✅ COMPLETED
+- [x] **AEST timezone handling** - Convert timestamps to Australian Eastern Standard Time ✅ COMPLETED
+- [x] **Datetime format handling** - Try datetime.datetime first, fallback to string if needed ✅ COMPLETED
+- [x] **Closing balance metadata** - Add closing_balance field as decimal number for future balance assertions ✅ COMPLETED
 
 #### 🔄 Incremental Archive Updates
-- [ ] **Archive-based updates** - Replace full file rewrites with incremental updates to existing archive
-- [ ] **Transaction creation** - Handle new transactions from upstream service
-- [ ] **Transaction updates** - Detect and update modified transactions from upstream
-- [ ] **Metadata synchronization** - Ensure last modified datetime is updated for changed transactions
-- [ ] **Conflict resolution** - Handle cases where local and upstream data differ
+- [x] **Archive-based updates** - Replace full file rewrites with incremental updates to existing archive ✅ COMPLETED
+- [x] **Transaction creation** - Handle new transactions from upstream service ✅ COMPLETED
+- [x] **Transaction updates** - Detect and update modified transactions from upstream ✅ COMPLETED
+- [x] **Metadata synchronization** - Ensure last modified datetime is updated for changed transactions ✅ COMPLETED
+- [x] **Conflict resolution** - Handle cases where local and upstream data differ ✅ COMPLETED
 
 ## Current Status
-**Phases 1-5 Complete** - PocketSmith-to-Beancount converter fully implemented with comprehensive test coverage.
+**Phases 1-6 Complete** - PocketSmith-to-Beancount converter fully implemented with comprehensive test coverage and advanced file management features.
 
-**✅ Phase 5 COMPLETED** - All critical bugs fixed, all missing features implemented, and comprehensive test suite implemented:
-- ✅ **10 of 10 critical bugs COMPLETED**
-- ✅ **6 of 6 missing features COMPLETED**  
-- ✅ **Comprehensive unit test suite implemented (79 tests total - 49% increase)**
-- ✅ **All tests passing with full coverage of edge cases and error scenarios**
-- ✅ **Integration tests for end-to-end pipeline validation**
-- ✅ **Performance testing with large datasets**
-- ✅ **Complete test coverage for all Phase 5 features**
+**✅ Phase 6 COMPLETED** - All advanced file management and archive features implemented:
+- ✅ **26 of 26 Phase 6 features COMPLETED**
+- ✅ **Hierarchical file structure with yearly folders and monthly transaction files**
+- ✅ **Decimal ID format for all metadata fields with error handling**
+- ✅ **Enhanced account declarations with starting balance data**
+- ✅ **Compact transaction changelog with AEST timestamps**
+- ✅ **Enhanced transaction metadata with last modified timestamps**
+- ✅ **Incremental archive updates with change detection**
+- ✅ **All tests passing (74 tests total)**
 - ✅ **Type checking with mypy passing**
 - ✅ **Code formatting and linting with ruff passing**
 
@@ -202,5 +203,5 @@ uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-da
 uv run pytest                    # Run tests
 uv run ruff check .             # Lint code
 uv run ruff format .            # Format code
-uv run bean-check output/*.beancount   # Validate beancount files (after implementing)
+uv run bean-check output/main.beancount   # Validate beancount files (after implementing)
 ```

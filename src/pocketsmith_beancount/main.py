@@ -26,6 +26,11 @@ def main() -> None:
         "--filename", type=str, help="Output filename (without extension)"
     )
     parser.add_argument(
+        "--hierarchical",
+        action="store_true",
+        help="Use hierarchical file structure with yearly folders and monthly files",
+    )
+    parser.add_argument(
         "--account-id", type=int, help="Specific account ID to fetch transactions for"
     )
 
@@ -81,15 +86,35 @@ def main() -> None:
         print(f"Extracted balances for {len(account_balances)} accounts")
 
         print("Converting to Beancount format...")
-        beancount_content = converter.convert_transactions(
-            transactions, transaction_accounts, categories, account_balances
-        )
 
-        print("Writing to file...")
-        output_file = writer.write_beancount_file(beancount_content, args.filename)
+        if args.hierarchical:
+            print("Using hierarchical file structure...")
+            written_files = writer.write_hierarchical_beancount_files(
+                transactions,
+                transaction_accounts,
+                categories,
+                account_balances,
+                converter,
+            )
 
-        print(f"Successfully wrote {len(transactions)} transactions to: {output_file}")
-        print(f"Output directory: {writer.get_output_directory()}")
+            print(
+                f"Successfully wrote {len(transactions)} transactions to hierarchical structure:"
+            )
+            for relative_path, full_path in written_files.items():
+                print(f"  {relative_path}")
+            print(f"Output directory: {writer.get_output_directory()}")
+        else:
+            beancount_content = converter.convert_transactions(
+                transactions, transaction_accounts, categories, account_balances
+            )
+
+            print("Writing to file...")
+            output_file = writer.write_beancount_file(beancount_content, args.filename)
+
+            print(
+                f"Successfully wrote {len(transactions)} transactions to: {output_file}"
+            )
+            print(f"Output directory: {writer.get_output_directory()}")
 
     except ValueError as e:
         print(f"Configuration error: {e}", file=sys.stderr)

@@ -32,7 +32,7 @@ repos:
         
       - id: bean-check
         name: bean-check
-        entry: bash -c 'if ls output/*.beancount 1> /dev/null 2>&1; then uv run bean-check output/*.beancount; else echo "No beancount files found in output/"; fi'
+        entry: bash -c 'if [ -f output/main.beancount ]; then uv run bean-check output/main.beancount; else echo "No main.beancount file found in output/"; fi'
         language: system
-        files: '\.beancount$'
+        types: [python]
         pass_filenames: false
