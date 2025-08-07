@@ -67,7 +67,8 @@ class BeancountConverter:
             return "Assets:Unknown:Unknown"
 
         if account_id not in self.account_mapping:
-            institution = account.get("institution", {}).get("title", "Unknown")
+            institution_data = account.get("institution") or {}
+            institution = institution_data.get("title", "Unknown")
             account_name = account.get("name", f"Account-{account_id}")
 
             sanitized_institution = self._sanitize_account_name(institution)
