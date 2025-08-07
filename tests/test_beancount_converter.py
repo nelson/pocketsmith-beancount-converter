@@ -87,7 +87,7 @@ class TestBeancountConverter:
 
         expected_lines = [
             '2024-01-15 * "Test Store" "Grocery shopping"',
-            '    id: "1"',
+            "    id: 1",
             "  Expenses:Groceries  50.00 USD",
             "  Assets:Test-Bank:Checking",
         ]
@@ -129,7 +129,7 @@ class TestBeancountConverter:
 
         expected_lines = [
             '2024-01-01 * "Employer" "Salary"',
-            '    id: "2"',
+            "    id: 2",
             "  Assets:Test-Bank:Checking  2000.00 USD",
             "  Income:Salary",
         ]
@@ -166,7 +166,7 @@ class TestBeancountConverter:
 
         assert len(declarations) == 1
         assert "Assets:Test-Bank:Test-Account USD" in declarations[0]
-        assert 'id: "123"' in declarations[0]
+        assert "id: 123" in declarations[0]
 
     def test_category_declarations(self):
         """Test that category account declarations are generated"""

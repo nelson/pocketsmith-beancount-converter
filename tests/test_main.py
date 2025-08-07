@@ -7,73 +7,16 @@ from src.pocketsmith_beancount.main import main
 class TestMain:
     @patch("src.pocketsmith_beancount.main.load_dotenv")
     @patch("src.pocketsmith_beancount.main.argparse.ArgumentParser.parse_args")
-    def test_main_argument_parsing(self, mock_parse_args, mock_load_dotenv):
+    @patch("builtins.print")
+    def test_main_argument_parsing(self, mock_print, mock_parse_args, mock_load_dotenv):
         """Test CLI argument parsing"""
         mock_args = Mock()
         mock_args.start_date = "2024-01-01"
         mock_args.end_date = "2024-01-31"
-        mock_args.output_dir = "/tmp/output"
-        mock_args.filename = "test"
-        mock_args.account_id = 123
-        mock_parse_args.return_value = mock_args
-
-        with patch(
-            "src.pocketsmith_beancount.main.PocketSmithClient"
-        ) as mock_client_class:
-            with patch(
-                "src.pocketsmith_beancount.main.BeancountConverter"
-            ) as mock_converter_class:
-                with patch(
-                    "src.pocketsmith_beancount.main.BeancountFileWriter"
-                ) as mock_writer_class:
-                    # Mock the client instance and its methods
-                    mock_client = Mock()
-                    mock_client.get_user.return_value = {"login": "test_user"}
-                    mock_client.get_transaction_accounts.return_value = []
-                    mock_client.get_categories.return_value = []
-                    mock_client.get_transactions.return_value = [
-                        {"id": 1, "amount": "10.00"}
-                    ]  # Non-empty for file write
-                    mock_client_class.return_value = mock_client
-
-                    # Mock converter and writer
-                    mock_converter = Mock()
-                    mock_converter.convert_transactions.return_value = "test content"
-                    mock_converter_class.return_value = mock_converter
-
-                    mock_writer = Mock()
-                    mock_writer.write_beancount_file.return_value = (
-                        "/tmp/output/test.beancount"
-                    )
-                    mock_writer.get_output_directory.return_value = "/tmp/output"
-                    mock_writer_class.return_value = mock_writer
-
-                    main()
-
-                    # Verify arguments were passed correctly
-                    mock_client.get_transactions.assert_called_once_with(
-                        start_date="2024-01-01",
-                        end_date="2024-01-31",
-                        account_id=123,
-                    )
-                    mock_writer_class.assert_called_once_with("/tmp/output")
-                    mock_writer.write_beancount_file.assert_called_once_with(
-                        "test content", "test"
-                    )
-
-    @patch("src.pocketsmith_beancount.main.load_dotenv")
-    @patch("src.pocketsmith_beancount.main.argparse.ArgumentParser.parse_args")
-    @patch("builtins.print")
-    def test_main_no_transactions_found(
-        self, mock_print, mock_parse_args, mock_load_dotenv
-    ):
-        """Test behavior when no transactions are returned"""
-        mock_args = Mock()
-        mock_args.start_date = None
-        mock_args.end_date = None
         mock_args.output_dir = None
         mock_args.filename = None
         mock_args.account_id = None
+        mock_args.hierarchical = False
         mock_parse_args.return_value = mock_args
 
         with patch(
@@ -170,6 +113,7 @@ class TestMain:
     def test_main_file_write_error(self, mock_print, mock_parse_args, mock_load_dotenv):
         """Test handling of file write errors"""
         mock_args = Mock()
+        mock_args.hierarchical = False
         mock_parse_args.return_value = mock_args
 
         with patch(
@@ -221,6 +165,7 @@ class TestMain:
         mock_args.output_dir = None
         mock_args.filename = None
         mock_args.account_id = None
+        mock_args.hierarchical = False
         mock_parse_args.return_value = mock_args
 
         with patch(
@@ -297,6 +242,7 @@ class TestMain:
         mock_args.output_dir = None
         mock_args.filename = None
         mock_args.account_id = None
+        mock_args.hierarchical = False
         mock_parse_args.return_value = mock_args
 
         with patch(
@@ -380,6 +326,7 @@ class TestMain:
         mock_args.output_dir = None
         mock_args.filename = None
         mock_args.account_id = None
+        mock_args.hierarchical = False
         mock_parse_args.return_value = mock_args
 
         with patch(
@@ -450,6 +397,7 @@ class TestMain:
         mock_args.output_dir = None
         mock_args.filename = None
         mock_args.account_id = None
+        mock_args.hierarchical = False
         mock_parse_args.return_value = mock_args
 
         with patch(

@@ -41,10 +41,10 @@ jobs:
 
     - name: Validate beancount files
       run: |
-        if ls output/*.beancount 1> /dev/null 2>&1; then
-          uv run bean-check output/*.beancount
+        if [ -f output/main.beancount ]; then
+          uv run bean-check output/main.beancount
         else
-          echo "No beancount files found to validate"
+          echo "No main.beancount file found to validate"
         fi
 
   lint-and-format:
