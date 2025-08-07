@@ -114,3 +114,16 @@ You'll need a PocketSmith API key. Get one from:
 1. Log into your PocketSmith account
 2. Go to Settings → Developer
 3. Generate a new API key
+
+## CONTRIBUTION
+
+### Contribution Checklist
+
+- [ ] Summarise changes from beginning of session
+- [ ] Create GitHub issue
+- [ ] Create well named branch
+- [ ] Commit changes with message that begins with "<type> #[ISSUE_NUMBER]: [SUMMARY]" where <type> is documented in Conventional Commits (https://www.conventionalcommits.org) and ISSUE NUMBER is the github issue number
+- [ ] Create GitHub pull request based on this branch
+- [ ] Poll for the pull request status
+  - If successful, pull and checkout master, and clean up branches
+  - If failed, don't pull, stay on the branch and try to fix any issues
