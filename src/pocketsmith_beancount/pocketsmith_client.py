@@ -35,7 +35,13 @@ class PocketSmithClient:
             if len(parts) != 2:
                 continue
             url = parts[0].strip("<>")
-            rel = parts[1].strip().split("=")[1].strip('"')
+            # Skip empty or invalid URLs
+            if not url or not url.startswith(("http://", "https://")):
+                continue
+            rel_part = parts[1].strip().split("=")
+            if len(rel_part) != 2:
+                continue
+            rel = rel_part[1].strip('"')
             links[rel] = url
         return links
 
