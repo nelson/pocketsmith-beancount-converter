@@ -73,120 +73,48 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 - [x] **Add mypy to uv dependencies** - Start requiring mypy checks before local commits, and add it to the GitHub PR check workflow. Add it to the README. Start with `--strict`, and add `--ignore-missing-imports` if necessary. Fix any type errors ✅ COMPLETED
 - [x] **Add pre-commit to uv dependencies** - Add current checks to pre-commit: mypy, pytest, bean-check, ruff ✅ COMPLETED
 
-#### 🧪 Testing Requirements
-- [x] **Write unit tests for bug fixes** - Comprehensive test coverage for all bug fixes ✅ COMPLETED
-- [x] **Write unit tests for new features** - Test coverage for all new functionality ✅ COMPLETED
 
-#### ✅ Unit Tests Analysis (Current: 79 tests - Target Exceeded!) - **COMPLETED**
 
-##### **PocketSmithClient Tests** (10 → 18 total tests) ✅ COMPLETED
-**Existing Tests (10):**
-- [x] **`test_get_accounts()`** - Test fetching user accounts ✅ COMPLETED
-- [x] **`test_get_categories()`** - Test fetching user categories ✅ COMPLETED
-- [x] **`test_get_transaction_accounts()`** - Test fetching transaction accounts ✅ COMPLETED
-- [x] **`test_make_request_error_handling()`** - Test HTTP error handling (404, 401, 500) ✅ COMPLETED
-- [x] **`test_get_transactions_without_params()`** - Test transactions without date/account filters ✅ COMPLETED
-- [x] **`test_api_response_type_handling()`** - Test handling of non-list responses from API ✅ COMPLETED
+### ✅ Phase 6: Advanced File Management & Archive Features (PENDING)
 
-**New Phase 5 Tests (8 additional):**
-- [x] **`test_parse_link_header_valid()`** - Test parsing valid Link headers with next/prev/first/last relations ✅ COMPLETED
-- [x] **`test_parse_link_header_empty()`** - Test handling empty/None Link headers ✅ COMPLETED
-- [x] **`test_parse_link_header_malformed()`** - Test handling malformed Link headers ✅ COMPLETED
-- [x] **`test_get_transactions_pagination()`** - Test pagination flow with multiple pages ✅ COMPLETED
-- [x] **`test_get_transactions_pagination_no_next()`** - Test single page response (no pagination) ✅ COMPLETED
-- [x] **`test_get_account_balances_success()`** - Test successful balance fetching ✅ COMPLETED
-- [x] **`test_get_account_balances_empty()`** - Test when no balances are returned ✅ COMPLETED
-- [x] **`test_get_account_balances_error()`** - Test API error handling for balance requests ✅ COMPLETED
+#### 📁 Multi-File Beancount Structure
+- [ ] **Implement hierarchical file organization** - Create top-level beancount file with account declarations, category declarations, and includes
+- [ ] **Monthly transaction files** - Organize transactions into one file per month (YYYY-MM.beancount)
+- [ ] **Yearly folder structure** - Place monthly files in calendar year folders (e.g., 2024/2024-01.beancount)
+- [ ] **Update file writer** - Modify BeancountFileWriter to support multi-file output structure
+- [ ] **Add include statements** - Generate proper include directives in top-level file
 
-##### **BeancountConverter Tests** (23 → 35 total tests) ✅ COMPLETED
-**Existing Tests (23):**
-- [x] **`test_get_category_account_transfer()`** - Test transfer category handling ✅ COMPLETED
-- [x] **`test_get_category_account_none()`** - Test null/missing category handling ✅ COMPLETED
-- [x] **`test_get_account_name_credit_card()`** - Test credit card account type mapping to Liabilities ✅ COMPLETED
-- [x] **`test_get_account_name_loan()`** - Test loan account type mapping to Liabilities ✅ COMPLETED
-- [x] **`test_get_account_name_missing_institution()`** - Test accounts without institution data ✅ COMPLETED
-- [x] **`test_convert_transaction_missing_category()`** - Test transactions without categories ✅ COMPLETED
-- [x] **`test_convert_transaction_missing_transaction_account()`** - Test transactions without account data ✅ COMPLETED
-- [x] **`test_convert_transaction_quote_escaping()`** - Test payee/narration with quotes ✅ COMPLETED
-- [x] **`test_convert_transactions_full_integration()`** - Test the full `convert_transactions()` method ✅ COMPLETED
-- [x] **`test_generate_account_declarations_missing_dates()`** - Test accounts without starting_balance_date ✅ COMPLETED
-- [x] **`test_generate_commodity_declarations_empty()`** - Test when no currencies are tracked ✅ COMPLETED
+#### 🔢 Data Type Improvements  
+- [ ] **Convert IDs to decimal numbers** - Change transaction and account IDs from strings to decimal numbers in beancount output
+- [ ] **Update metadata handling** - Ensure all ID fields use decimal representation consistently
+- [ ] **Validate decimal conversion** - Add error handling for invalid ID formats
 
-**New Phase 5 Tests (12 additional):**
-- [x] **`test_convert_transaction_with_labels()`** - Test labels converted to tags ✅ COMPLETED
-- [x] **`test_convert_transaction_with_empty_labels()`** - Test empty labels array ✅ COMPLETED
-- [x] **`test_convert_transaction_with_special_char_labels()`** - Test label sanitization ✅ COMPLETED
-- [x] **`test_convert_transaction_needs_review_true()`** - Test ! flag for needs_review=true ✅ COMPLETED
-- [x] **`test_convert_transaction_needs_review_false()`** - Test * flag for needs_review=false ✅ COMPLETED
-- [x] **`test_convert_transaction_needs_review_missing()`** - Test default * flag when field missing ✅ COMPLETED
-- [x] **`test_convert_transaction_labels_and_needs_review()`** - Test both features together ✅ COMPLETED
-- [x] **`test_generate_balance_directives_success()`** - Test balance directive generation ✅ COMPLETED
-- [x] **`test_generate_balance_directives_empty()`** - Test with no balance data ✅ COMPLETED
-- [x] **`test_generate_balance_directives_missing_account()`** - Test with invalid account IDs ✅ COMPLETED
-- [x] **`test_convert_transactions_with_balance_directives()`** - Test integration with balance directives ✅ COMPLETED
-- [x] **`test_convert_transactions_without_balance_directives()`** - Test backward compatibility ✅ COMPLETED
+#### 💰 Enhanced Account Declarations
+- [ ] **Use starting balance data** - Look for starting_balance and starting_balance_date in transaction account objects
+- [ ] **Account declaration dates** - Use starting_balance_date as the account declaration date when available
+- [ ] **Starting balance directives** - Include starting balance declarations in top-level beancount file
+- [ ] **Handle missing balance data** - Graceful fallback when starting balance information is not available
 
-##### **BeancountFileWriter Tests** (10 total tests) ✅ COMPLETED
-**Implemented:**
-- [x] **`test_init_with_env_var()`** - Test initialization with BEANCOUNT_OUTPUT_DIR environment variable ✅ COMPLETED
-- [x] **`test_write_file_creates_directory()`** - Test that output directory is created if it doesn't exist ✅ COMPLETED
-- [x] **`test_write_file_with_extension_already_present()`** - Test filename handling when .beancount extension already exists ✅ COMPLETED
-- [x] **`test_append_to_nonexistent_file()`** - Test appending to a file that doesn't exist yet ✅ COMPLETED
+#### 📝 Transaction Changelog
+- [ ] **Implement compact changelog** - Create changelog file recording transaction operations
+- [ ] **Single-line format** - Use compact format instead of JSON for space efficiency
+- [ ] **AEST timestamps** - Include millisecond-resolution timestamps in Australian Eastern Standard Time
+- [ ] **Operation tracking** - Record create, modify, delete operations for transactions
+- [ ] **Field-level changes** - For modifications, specify which field changed with old and new values
+- [ ] **Example format** - `Aug 7 06:47:42.774 MODIFY 856546480 tags: [] -> #restaurants`
 
-##### **Main Module Tests** (6 → 9 total tests) ✅ COMPLETED - **HIGH PRIORITY**
-**Existing Tests (6):**
-- [x] **`test_main_argument_parsing()`** - Test CLI argument parsing ✅ COMPLETED
-- [x] **`test_main_no_transactions_found()`** - Test behavior when no transactions are returned ✅ COMPLETED
-- [x] **`test_main_api_key_missing()`** - Test error handling for missing API key ✅ COMPLETED
-- [x] **`test_main_api_error_handling()`** - Test handling of API errors ✅ COMPLETED
-- [x] **`test_main_file_write_error()`** - Test handling of file write errors ✅ COMPLETED
-- [x] **`test_main_success_flow()`** - Test successful end-to-end execution (mocked) ✅ COMPLETED
+#### 🕒 Transaction Metadata Enhancements
+- [ ] **Last modified datetime** - Add metadata field using updated_at from transaction object
+- [ ] **AEST timezone handling** - Convert timestamps to Australian Eastern Standard Time
+- [ ] **Datetime format handling** - Try datetime.datetime first, fallback to string if needed
+- [ ] **Closing balance metadata** - Add closing_balance field as decimal number for future balance assertions
 
-**New Phase 5 Tests (3 additional):**
-- [x] **`test_main_with_balance_fetching()`** - Test successful balance fetching in main flow ✅ COMPLETED
-- [x] **`test_main_balance_fetch_error()`** - Test handling of balance fetch errors ✅ COMPLETED
-- [x] **`test_main_balance_fetch_partial_failure()`** - Test when some accounts fail balance fetch ✅ COMPLETED
-
-##### **Integration Tests** (4 → 7 total tests) ✅ COMPLETED - **MEDIUM PRIORITY**
-**Existing Tests (4):**
-- [x] **`test_end_to_end_conversion()`** - Test full pipeline with mock data ✅ COMPLETED
-- [x] **`test_multiple_currencies()`** - Test handling of multiple currencies in one conversion ✅ COMPLETED
-- [x] **`test_large_transaction_set()`** - Test performance with large datasets ✅ COMPLETED
-- [x] **`test_special_characters_in_data()`** - Test handling of special characters in account names, payees, etc. ✅ COMPLETED
-
-**New Phase 5 Tests (3 additional):**
-- [x] **`test_end_to_end_with_labels_and_flags()`** - Test full pipeline with labels and needs_review ✅ COMPLETED
-- [x] **`test_end_to_end_with_balance_directives()`** - Test full pipeline with balance directives ✅ COMPLETED
-- [x] **`test_pagination_integration()`** - Test pagination in full pipeline ✅ COMPLETED
-
-##### ✅ **Test Coverage Summary** - **COMPLETED**
-- **High Priority** (Critical for reliability): ✅ All Phase 5 features fully tested - Pagination, labels/tags, needs_review flags
-- **Medium Priority** (Important for robustness): ✅ Balance directives, error handling for new features
-- **Low Priority** (Nice to have): ✅ All completed - Performance tests, special character handling
-
-**✅ Coverage Achievements:**
-- **Phase 5 Features**: ✅ Comprehensive test coverage for all new functionality
-- **Pagination**: ✅ Link header parsing, multi-page fetching, error handling
-- **Labels & Tags**: ✅ Label sanitization, tag conversion, edge cases
-- **Needs Review Flags**: ✅ Flag handling, missing field defaults
-- **Balance Directives**: ✅ Balance fetching, directive generation, integration
-- **Error Scenarios**: ✅ API errors for new endpoints, partial failures
-- **Integration**: ✅ End-to-end testing with all new features combined
-
-**Final Coverage Achievements:**
-- **Total Tests**: 53 → 79 tests (49% increase - Target exceeded!)
-- **PocketSmithClient**: 10 → 18 tests (80% increase for new pagination/balance features)
-- **BeancountConverter**: 23 → 35 tests (52% increase for labels/tags/balance features)
-- **Main Module**: 6 → 9 tests (50% increase for balance fetching logic)
-- **Integration**: 4 → 7 tests (75% increase for Phase 5 feature integration)
-
-### ✅ Phase 6: Integration & Deployment (PENDING)
-- [x] **GitHub Actions CI/CD** - Created `.github/workflows/pr-checks.yml`
-- [ ] **Update CI/CD with bean-check** - Add beancount validation to automated checks
-- [ ] **Create GitHub issues for major features**
-- [ ] **Create pull requests linking to issues**
-- [ ] **Request code review from user**
-- [ ] **Final integration testing**
+#### 🔄 Incremental Archive Updates
+- [ ] **Archive-based updates** - Replace full file rewrites with incremental updates to existing archive
+- [ ] **Transaction creation** - Handle new transactions from upstream service
+- [ ] **Transaction updates** - Detect and update modified transactions from upstream
+- [ ] **Metadata synchronization** - Ensure last modified datetime is updated for changed transactions
+- [ ] **Conflict resolution** - Handle cases where local and upstream data differ
 
 ## Current Status
 **Phases 1-5 Complete** - PocketSmith-to-Beancount converter fully implemented with comprehensive test coverage.
