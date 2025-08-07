@@ -60,9 +60,29 @@ def main() -> None:
             print("No transactions found for the specified criteria.")
             return
 
+        print("Extracting account balances...")
+        account_balances = {}
+        for transaction_account in transaction_accounts:
+            transaction_account_id = transaction_account.get("id")
+            current_balance = transaction_account.get("current_balance")
+            current_balance_date = transaction_account.get("current_balance_date")
+
+            if (
+                transaction_account_id
+                and current_balance is not None
+                and current_balance_date
+            ):
+                account_balances[transaction_account_id] = [
+                    {
+                        "date": f"{current_balance_date}T00:00:00Z",
+                        "balance": str(current_balance),
+                    }
+                ]
+        print(f"Extracted balances for {len(account_balances)} accounts")
+
         print("Converting to Beancount format...")
         beancount_content = converter.convert_transactions(
-            transactions, transaction_accounts, categories
+            transactions, transaction_accounts, categories, account_balances
         )
 
         print("Writing to file...")

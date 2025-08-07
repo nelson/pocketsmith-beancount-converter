@@ -519,3 +519,351 @@ class TestBeancountConverter:
         declarations = self.converter.generate_commodity_declarations()
 
         assert declarations == []
+
+    def test_convert_transaction_with_labels(self) -> None:
+        """Test labels converted to tags"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            "labels": ["food", "restaurant", "dinner"],
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should contain tags
+        assert "#food #restaurant #dinner" in result
+        assert (
+            '2024-01-01 * "Test Merchant" "Test note" #food #restaurant #dinner'
+            in result
+        )
+
+    def test_convert_transaction_with_empty_labels(self) -> None:
+        """Test empty labels array"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            "labels": [],
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should not contain any tags
+        assert "#" not in result
+        assert '2024-01-01 * "Test Merchant" "Test note"' in result
+
+    def test_convert_transaction_with_special_char_labels(self) -> None:
+        """Test label sanitization"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            "labels": ["food & drink", "café/restaurant", "high-end", "5-star!"],
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should contain sanitized tags (note: multiple consecutive hyphens get collapsed)
+        assert "#food---drink" in result or "#food-drink" in result
+        assert "#caf--restaurant" in result or "#café-restaurant" in result
+        assert "#high-end" in result
+        assert "#5-star" in result
+        # Should not contain original special characters
+        assert "#food & drink" not in result
+        assert "#café/restaurant" not in result
+
+    def test_convert_transaction_needs_review_true(self) -> None:
+        """Test ! flag for needs_review=true"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            "needs_review": True,
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should use ! flag
+        assert '2024-01-01 ! "Test Merchant" "Test note"' in result
+        assert '2024-01-01 * "Test Merchant" "Test note"' not in result
+
+    def test_convert_transaction_needs_review_false(self) -> None:
+        """Test * flag for needs_review=false"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            "needs_review": False,
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should use * flag
+        assert '2024-01-01 * "Test Merchant" "Test note"' in result
+        assert '2024-01-01 ! "Test Merchant" "Test note"' not in result
+
+    def test_convert_transaction_needs_review_missing(self) -> None:
+        """Test default * flag when field missing"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            # needs_review field missing
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should default to * flag
+        assert '2024-01-01 * "Test Merchant" "Test note"' in result
+        assert '2024-01-01 ! "Test Merchant" "Test note"' not in result
+
+    def test_convert_transaction_labels_and_needs_review(self) -> None:
+        """Test both features together"""
+        converter = BeancountConverter()
+
+        transaction = {
+            "id": 1,
+            "date": "2024-01-01T00:00:00Z",
+            "amount": "10.00",
+            "merchant": "Test Merchant",
+            "note": "Test note",
+            "labels": ["urgent", "review-needed"],
+            "needs_review": True,
+            "transaction_account": {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            },
+            "category": {"id": 1, "title": "Dining"},
+        }
+
+        accounts = {1: transaction["transaction_account"]}
+        result = converter.convert_transaction(transaction, accounts)
+
+        # Should have both ! flag and tags
+        assert (
+            '2024-01-01 ! "Test Merchant" "Test note" #urgent #review-needed' in result
+        )
+
+    def test_generate_balance_directives_success(self) -> None:
+        """Test balance directive generation"""
+        converter = BeancountConverter()
+
+        # Set up account mapping first
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
+        ]
+
+        account_balances = {
+            1: [
+                {"date": "2024-01-01T00:00:00Z", "balance": "1000.00"},
+                {"date": "2024-01-02T00:00:00Z", "balance": "950.00"},
+            ]
+        }
+
+        result = converter.generate_balance_directives(
+            account_balances, transaction_accounts
+        )
+
+        assert len(result) == 2
+        assert "2024-01-02 balance Assets:Test-Bank:Checking 1000.00 USD" in result
+        assert "2024-01-03 balance Assets:Test-Bank:Checking 950.00 USD" in result
+
+    def test_generate_balance_directives_empty(self) -> None:
+        """Test with no balance data"""
+        converter = BeancountConverter()
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
+        ]
+
+        account_balances = {}
+
+        result = converter.generate_balance_directives(
+            account_balances, transaction_accounts
+        )
+
+        assert result == []
+
+    def test_generate_balance_directives_missing_account(self) -> None:
+        """Test with invalid account IDs"""
+        converter = BeancountConverter()
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
+        ]
+
+        # Balance data for account that doesn't exist in transaction_accounts
+        account_balances = {
+            999: [{"date": "2024-01-01T00:00:00Z", "balance": "1000.00"}]
+        }
+
+        result = converter.generate_balance_directives(
+            account_balances, transaction_accounts
+        )
+
+        assert result == []
+
+    def test_convert_transactions_with_balance_directives(self) -> None:
+        """Test integration with balance directives"""
+        converter = BeancountConverter()
+
+        transactions = [
+            {
+                "id": 1,
+                "date": "2024-01-01T00:00:00Z",
+                "amount": "10.00",
+                "merchant": "Test Merchant",
+                "note": "Test note",
+                "transaction_account": {"id": 1},
+                "category": {"id": 1, "title": "Dining"},
+            }
+        ]
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+                "starting_balance_date": "2024-01-01T00:00:00Z",
+            }
+        ]
+
+        categories = [{"id": 1, "title": "Dining"}]
+
+        account_balances = {1: [{"date": "2024-01-01T00:00:00Z", "balance": "1000.00"}]}
+
+        result = converter.convert_transactions(
+            transactions, transaction_accounts, categories, account_balances
+        )
+
+        # Should contain balance directive (account name may be different due to mapping)
+        assert "balance" in result and "1000.00 USD" in result
+
+    def test_convert_transactions_without_balance_directives(self) -> None:
+        """Test backward compatibility"""
+        converter = BeancountConverter()
+
+        transactions = [
+            {
+                "id": 1,
+                "date": "2024-01-01T00:00:00Z",
+                "amount": "10.00",
+                "merchant": "Test Merchant",
+                "note": "Test note",
+                "transaction_account": {"id": 1},
+                "category": {"id": 1, "title": "Dining"},
+            }
+        ]
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+                "starting_balance_date": "2024-01-01T00:00:00Z",
+            }
+        ]
+
+        categories = [{"id": 1, "title": "Dining"}]
+
+        # Call without account_balances parameter
+        result = converter.convert_transactions(
+            transactions, transaction_accounts, categories
+        )
+
+        # Should not contain balance directive
+        assert "balance" not in result
+        # Should still contain transaction
+        assert "Test Merchant" in result

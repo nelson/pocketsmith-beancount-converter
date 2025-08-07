@@ -340,3 +340,159 @@ class TestIntegration:
                 0
             ]
         )
+
+    def test_end_to_end_with_labels_and_flags(self) -> None:
+        """Test full pipeline with labels and needs_review"""
+        converter = BeancountConverter()
+
+        # Mock data with labels and needs_review flags
+        transactions = [
+            {
+                "id": 1,
+                "date": "2024-01-01T00:00:00Z",
+                "amount": "25.50",
+                "merchant": "Coffee Shop",
+                "note": "Morning coffee",
+                "labels": ["coffee", "daily-expense"],
+                "needs_review": False,
+                "transaction_account": {"id": 1},
+                "category": {"id": 1, "title": "Food & Drink"},
+            },
+            {
+                "id": 2,
+                "date": "2024-01-02T00:00:00Z",
+                "amount": "150.00",
+                "merchant": "Unknown Merchant",
+                "note": "Large purchase",
+                "labels": ["review-needed", "large-expense"],
+                "needs_review": True,
+                "transaction_account": {"id": 1},
+                "category": {"id": 2, "title": "Miscellaneous"},
+            },
+        ]
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking Account",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+                "starting_balance_date": "2024-01-01T00:00:00Z",
+            }
+        ]
+
+        categories = [
+            {"id": 1, "title": "Food & Drink"},
+            {"id": 2, "title": "Miscellaneous"},
+        ]
+
+        beancount_content = converter.convert_transactions(
+            transactions, transaction_accounts, categories
+        )
+
+        # Should contain tags for both transactions
+        assert "#coffee #daily-expense" in beancount_content
+        assert "#review-needed #large-expense" in beancount_content
+
+        # Should have correct flags
+        assert (
+            '2024-01-01 * "Coffee Shop" "Morning coffee" #coffee #daily-expense'
+            in beancount_content
+        )
+        assert (
+            '2024-01-02 ! "Unknown Merchant" "Large purchase" #review-needed #large-expense'
+            in beancount_content
+        )
+
+    def test_end_to_end_with_balance_directives(self) -> None:
+        """Test full pipeline with balance directives"""
+        converter = BeancountConverter()
+
+        transactions = [
+            {
+                "id": 1,
+                "date": "2024-01-01T00:00:00Z",
+                "amount": "100.00",
+                "merchant": "Test Merchant",
+                "note": "Test transaction",
+                "transaction_account": {"id": 1},
+                "category": {"id": 1, "title": "Testing"},
+            }
+        ]
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+                "starting_balance_date": "2024-01-01T00:00:00Z",
+            }
+        ]
+
+        categories = [{"id": 1, "title": "Testing"}]
+
+        account_balances = {
+            1: [
+                {"date": "2024-01-01T00:00:00Z", "balance": "1000.00"},
+                {"date": "2024-01-02T00:00:00Z", "balance": "900.00"},
+            ]
+        }
+
+        beancount_content = converter.convert_transactions(
+            transactions, transaction_accounts, categories, account_balances
+        )
+
+        # Should contain balance directives (account name may vary due to mapping)
+        assert "balance" in beancount_content and "1000.00 USD" in beancount_content
+        assert "balance" in beancount_content and "900.00 USD" in beancount_content
+
+        # Should still contain transaction
+        assert "Test Merchant" in beancount_content
+
+    def test_pagination_integration(self) -> None:
+        """Test pagination in full pipeline"""
+        # This test would require mocking the PocketSmithClient
+        # For now, we'll test the converter can handle large datasets
+        converter = BeancountConverter()
+
+        # Generate a large number of transactions to simulate pagination results
+        transactions = []
+        for i in range(2500):  # Simulate 2.5 pages of 1000 transactions each
+            transactions.append(
+                {
+                    "id": i + 1,
+                    "date": f"2024-01-{(i % 30) + 1:02d}T00:00:00Z",
+                    "amount": f"{(i % 100) + 1}.00",
+                    "merchant": f"Merchant {i + 1}",
+                    "note": f"Transaction {i + 1}",
+                    "transaction_account": {"id": 1},
+                    "category": {"id": 1, "title": "Testing"},
+                }
+            )
+
+        transaction_accounts = [
+            {
+                "id": 1,
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+                "starting_balance_date": "2024-01-01T00:00:00Z",
+            }
+        ]
+
+        categories = [{"id": 1, "title": "Testing"}]
+
+        # Should handle large dataset without issues
+        beancount_content = converter.convert_transactions(
+            transactions, transaction_accounts, categories
+        )
+
+        # Should contain all transactions
+        assert "Merchant 1" in beancount_content
+        assert "Merchant 2500" in beancount_content
+
+        # Should have proper structure (dates may vary)
+        assert "commodity USD" in beancount_content
+        assert "open Assets:" in beancount_content and "USD" in beancount_content
+        assert "open Expenses:Testing" in beancount_content
