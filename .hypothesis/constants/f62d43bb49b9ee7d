@@ -1,4 +1,0 @@
-# file: /Users/nelson/Src/vibe-opencode-pocketsmith-beancount/src/pocketsmith_beancount/beancount_converter.py
-# hypothesis_version: 6.137.1
-
-['!', '"', '%B %Y', '%Y-%m-%d', '%b %d %H:%M:%S.%f', '*', '+00:00', '-', '-+', 'Assets', 'Australia/Sydney', 'Liabilities', 'USD', 'Uncategorized', 'Unknown', 'Z', '[^\\d.]', '[^a-zA-Z0-9\\-]', '[^a-zA-Z0-9\\-_]', '\\"', '_', 'amount', 'balance', 'bank', 'category', 'checking', 'closing_balance', 'credit_card', 'currency_code', 'date', 'id', 'institution', 'investment', 'is_income', 'is_transfer', 'labels', 'loan', 'memo', 'merchant', 'name', 'needs_review', 'note', 'payee', 'savings', 'starting_balance', 'title', 'transaction_account', 'type', 'updated_at']

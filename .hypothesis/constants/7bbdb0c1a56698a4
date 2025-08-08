@@ -1,4 +1,0 @@
-# file: /Users/nelson/Src/vibe-opencode-pocketsmith-beancount/src/pocketsmith_beancount/file_writer.py
-# hypothesis_version: 6.137.1
-
-['%Y%m%d_%H%M%S', '%Y-%m', '+00:00', '-', './output', '.beancount', 'BEANCOUNT_OUTPUT_DIR', 'USD', 'Z', 'a', 'currency_code', 'date', 'main.beancount', 'utf-8', 'w']

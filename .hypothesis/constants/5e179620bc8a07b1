@@ -1,4 +1,0 @@
-# file: /Users/nelson/Src/vibe-opencode-pocketsmith-beancount/src/pocketsmith_beancount/pocketsmith_client.py
-# hypothesis_version: 6.137.1
-
-[1000, '"', ',', ';', '<>', '=', 'Accept', 'Link', 'POCKETSMITH_API_KEY', 'X-Developer-Key', 'account_id', 'application/json', 'end_date', 'http://', 'https://', 'id', 'me', 'next', 'per_page', 'start_date']

@@ -387,15 +387,11 @@ class BeancountConverter:
                 beancount_entries.extend(category_declarations)
                 beancount_entries.append("")
 
-        # Check if Expenses:Uncategorized is used and add declaration if needed
-        uses_uncategorized = any(
-            not transaction.get("category") for transaction in transactions
-        )
-        if uses_uncategorized:
-            open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
-            uncategorized_declaration = f"{open_date} open Expenses:Uncategorized"
-            beancount_entries.append(uncategorized_declaration)
-            beancount_entries.append("")
+        # Always add Expenses:Uncategorized declaration
+        open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
+        uncategorized_declaration = f"{open_date} open Expenses:Uncategorized"
+        beancount_entries.append(uncategorized_declaration)
+        beancount_entries.append("")
 
         if transaction_entries:
             beancount_entries.extend(transaction_entries)
