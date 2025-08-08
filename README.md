@@ -144,6 +144,7 @@ This checklist should be followed for every code contribution submitted to GitHu
 - [ ] Summarise changes from beginning of session
 - [ ] Create GitHub issue
 - [ ] Create well named branch
+- [ ] Run pre-commit hook
 - [ ] Commit changes with message that follows this exact format:
   - **First line**: `<type>: #[ISSUE_NUMBER] [SUMMARY]`
     - `<type>` follows [Conventional Commits](https://www.conventionalcommits.org) (feat, fix, docs, etc.)
