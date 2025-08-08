@@ -24,6 +24,30 @@ class PocketSmithClient:
         response.raise_for_status()
         return response.json()
 
+    def _make_put_request(
+        self, endpoint: str, data: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Make a PUT request to the API."""
+        url = f"{self.base_url}/{endpoint}"
+        headers = self.headers.copy()
+        headers["Content-Type"] = "application/json"
+        response = requests.put(url, headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result if isinstance(result, dict) else {}
+
+    def _make_patch_request(
+        self, endpoint: str, data: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Make a PATCH request to the API."""
+        url = f"{self.base_url}/{endpoint}"
+        headers = self.headers.copy()
+        headers["Content-Type"] = "application/json"
+        response = requests.patch(url, headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result if isinstance(result, dict) else {}
+
     def _parse_link_header(self, link_header: str) -> Dict[str, str]:
         """Parse Link header to extract pagination URLs."""
         links: Dict[str, str] = {}
@@ -115,3 +139,21 @@ class PocketSmithClient:
         if isinstance(result, list):
             return result
         return []
+
+    def update_transaction_note(self, transaction_id: str, note: str) -> Dict[str, Any]:
+        """Update a transaction's note field."""
+        data = {"note": note}
+        return self._make_put_request(f"transactions/{transaction_id}", data)
+
+    def update_transaction_labels(
+        self, transaction_id: str, labels: List[str]
+    ) -> Dict[str, Any]:
+        """Update a transaction's labels field."""
+        data = {"labels": labels}
+        return self._make_put_request(f"transactions/{transaction_id}", data)
+
+    def update_transaction(
+        self, transaction_id: str, updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update multiple fields of a transaction."""
+        return self._make_put_request(f"transactions/{transaction_id}", updates)
