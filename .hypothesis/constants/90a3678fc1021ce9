@@ -1,0 +1,4 @@
+# file: /Users/nelson/Src/vibe-opencode-pocketsmith-beancount/src/pocketsmith_beancount/main.py
+# hypothesis_version: 6.137.1
+
+['--account-id', '--end-date', '--filename', '--hierarchical', '--output-dir', '--start-date', 'Writing to file...', '__main__', 'balance', 'current_balance', 'current_balance_date', 'date', 'id', 'store_true']
