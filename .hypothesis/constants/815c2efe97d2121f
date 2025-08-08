@@ -1,4 +1,0 @@
-# file: /Users/nelson/Src/vibe-opencode-pocketsmith-beancount/src/pocketsmith_beancount/changelog.py
-# hypothesis_version: 6.137.1
-
-['%b %d %H:%M:%S.%f', ', ', './output', 'Australia/Sydney', 'CREATE', 'DELETE', 'MODIFY', 'None', '[]', 'a', 'amount', 'category', 'changelog.txt', 'id', 'labels', 'memo', 'merchant', 'needs_review', 'note', 'payee', 'tags', 'title', 'unknown', 'utf-8']

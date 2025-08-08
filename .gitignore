@@ -14,3 +14,6 @@ wheels/
 
 # Generated output files
 output/
+
+# Hypothesis cache
+.hypothesis/
