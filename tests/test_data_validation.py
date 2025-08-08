@@ -438,12 +438,14 @@ class TestDataValidation:
                 output_dir = writer.get_output_directory()
 
                 # The file writer should not crash when initialized with any path
-                # Note: The current BeancountFileWriter doesn't sanitize paths, 
+                # Note: The current BeancountFileWriter doesn't sanitize paths,
                 # so we test for graceful handling rather than security sanitization
                 assert isinstance(output_dir, str), (
                     f"Output directory should be a string: {output_dir}"
                 )
-                assert output_dir is not None, f"Output directory should not be None for path: {dangerous_path}"
+                assert output_dir is not None, (
+                    f"Output directory should not be None for path: {dangerous_path}"
+                )
 
             except (ValueError, OSError):
                 # Acceptable to reject dangerous paths
