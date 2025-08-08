@@ -23,6 +23,9 @@ This project provides a comprehensive way to:
 - **Transaction changelog**: Track changes with compact AEST timestamped logs
 - **Enhanced metadata**: Last modified timestamps, closing balances, and decimal ID format
 - **Incremental updates**: Support for archive-based updates with change detection
+- **Bidirectional synchronization**: Keep PocketSmith and beancount data in sync with intelligent conflict resolution
+- **Field-specific resolution**: Different sync strategies for different data types (amounts, notes, categories, tags)
+- **Write-back support**: Update PocketSmith via REST API when local changes are detected
 
 ## Setup
 
@@ -39,6 +42,8 @@ This project provides a comprehensive way to:
 
 ## Usage
 
+### Basic Operations
+
 ```bash
 # Fetch and convert transactions (single file)
 uv run python -m src.pocketsmith_beancount.main
@@ -51,6 +56,25 @@ uv run python -m src.pocketsmith_beancount.main --hierarchical
 
 # Specify custom output directory
 uv run python -m src.pocketsmith_beancount.main --output-dir /path/to/output --hierarchical
+```
+
+### Synchronization Operations
+
+```bash
+# Synchronize changes between PocketSmith and beancount
+uv run python -m src.pocketsmith_beancount.main --sync
+
+# Sync with dry-run mode (show what would be changed without making changes)
+uv run python -m src.pocketsmith_beancount.main --sync --dry-run
+
+# Sync with verbose logging for detailed operation tracking
+uv run python -m src.pocketsmith_beancount.main --sync --sync-verbose
+
+# Sync with custom batch size for API operations
+uv run python -m src.pocketsmith_beancount.main --sync --sync-batch-size 50
+
+# Combine sync with hierarchical structure and date range
+uv run python -m src.pocketsmith_beancount.main --sync --hierarchical --start-date 2024-01-01
 ```
 
 ## Development
@@ -100,17 +124,38 @@ uv run ruff check . && uv run ruff format . && uv run mypy src/ && uv run pytest
 │   └── pocketsmith_beancount/
 │       ├── __init__.py
 │       ├── main.py              # CLI entry point
-│       ├── pocketsmith_client.py # PocketSmith API client
+│       ├── pocketsmith_client.py # PocketSmith API client (with PUT/PATCH support)
 │       ├── beancount_converter.py # Transaction converter
 │       ├── file_writer.py       # Local file operations
-│       └── changelog.py         # Transaction change tracking
+│       ├── changelog.py         # Transaction change tracking
+│       ├── synchronizer.py      # Main synchronization orchestrator
+│       ├── field_resolver.py    # Field resolution strategies
+│       ├── field_mapping.py     # Field-to-strategy mapping
+│       ├── resolution_engine.py # Resolution strategy orchestration
+│       ├── transaction_comparator.py # Transaction comparison logic
+│       ├── api_writer.py        # REST API write-back functionality
+│       ├── sync_models.py       # Synchronization data structures
+│       ├── sync_enums.py        # Synchronization enums and constants
+│       ├── sync_exceptions.py   # Synchronization error classes
+│       ├── sync_interfaces.py   # Synchronization interfaces
+│       └── sync_cli.py          # CLI synchronization handler
 ├── tests/
 │   ├── __init__.py
 │   ├── test_pocketsmith_client.py
 │   ├── test_beancount_converter.py
 │   ├── test_file_writer.py
 │   ├── test_main.py
-│   └── test_integration.py
+│   ├── test_integration.py
+│   ├── test_synchronizer.py     # Sync orchestrator tests
+│   ├── test_field_resolver.py   # Resolution strategy tests
+│   ├── test_transaction_comparator.py # Comparison logic tests
+│   ├── test_api_writer.py       # Write-back functionality tests
+│   ├── test_sync_models.py      # Sync data structure tests
+│   ├── test_sync_cli.py         # CLI sync handler tests
+│   ├── test_real_api_endpoints.py # Real API validation tests
+│   ├── test_property_based.py   # Property-based tests with hypothesis
+│   ├── test_data_validation.py  # Comprehensive data validation tests
+│   └── test_edge_cases.py       # Edge case and error handling tests
 ├── output/                      # Generated files (hierarchical mode)
 │   ├── main.beancount          # Top-level declarations and includes
 │   ├── changelog.txt           # Transaction change log
@@ -127,6 +172,64 @@ The tool supports configuration via environment variables:
 - `POCKETSMITH_API_KEY`: Your PocketSmith API key (required)
 - `BEANCOUNT_OUTPUT_DIR`: Directory for output files (default: ./output)
 - `POCKETSMITH_BASE_URL`: API base URL (default: https://api.pocketsmith.com/v2)
+
+## Synchronization
+
+The synchronization feature keeps PocketSmith and beancount data in sync using intelligent field-specific resolution strategies. This bidirectional sync ensures your data stays consistent across both systems while respecting the nature of different data types.
+
+### How Synchronization Works
+
+1. **Transaction Matching**: Transactions are matched between PocketSmith and beancount using unique IDs
+2. **Change Detection**: The system compares timestamps and content to identify what has changed
+3. **Conflict Resolution**: Different resolution strategies are applied based on the field type
+4. **Bidirectional Updates**: Changes are applied to both local beancount files and remote PocketSmith data
+5. **Comprehensive Logging**: All sync operations are logged with detailed field-level changes
+
+### Resolution Strategies
+
+The sync system uses 5 different strategies for handling conflicts:
+
+#### Strategy 1: Never Change (Immutable Fields)
+- **Fields**: Transaction amounts, account names, closing balances, transaction titles
+- **Behavior**: These fields should never change. Conflicts generate warnings but no updates occur
+- **Rationale**: Core financial data should remain stable to maintain data integrity
+
+#### Strategy 2: Local Changes Only (Write-back Fields)  
+- **Fields**: Transaction notes/narration
+- **Behavior**: Local changes are written back to PocketSmith, remote changes are ignored
+- **Rationale**: Notes are often enhanced locally and should be preserved in the remote system
+
+#### Strategy 3: Remote Changes Only (Overwrite Fields)
+- **Fields**: Last modified timestamps, system-generated metadata
+- **Behavior**: Remote changes overwrite local values
+- **Rationale**: System timestamps should reflect the authoritative remote state
+
+#### Strategy 4: Remote Wins (Remote Priority Fields)
+- **Fields**: Transaction categories
+- **Behavior**: Remote changes take precedence over local modifications
+- **Rationale**: Categories are typically managed in PocketSmith and should be authoritative
+
+#### Strategy 5: Merge Lists (Bidirectional Merge Fields)
+- **Fields**: Transaction labels/tags
+- **Behavior**: Local and remote changes are merged with deduplication
+- **Rationale**: Tags can be added from either system and should be combined
+
+### Field Mapping
+
+| Field Type | Strategy | Local → Remote | Remote → Local |
+|------------|----------|----------------|----------------|
+| Title, Amount, Account, Closing Balance | Strategy 1 | ❌ (warn) | ❌ (warn) |
+| Note/Narration | Strategy 2 | ✅ (write-back) | ❌ (ignore) |
+| Last Modified, System Metadata | Strategy 3 | ❌ (ignore) | ✅ (overwrite) |
+| Category | Strategy 4 | ❌ (ignore) | ✅ (overwrite) |
+| Labels/Tags | Strategy 5 | ✅ (merge) | ✅ (merge) |
+
+### Sync Modes
+
+- **Full Sync**: `--sync` - Perform complete synchronization between systems
+- **Dry Run**: `--sync --dry-run` - Preview changes without making any updates
+- **Verbose**: `--sync --sync-verbose` - Detailed logging of all sync operations
+- **Batch Size**: `--sync --sync-batch-size N` - Control API batch size for performance tuning
 
 ## API Requirements
 
