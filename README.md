@@ -1,31 +1,47 @@
 # PocketSmith to Beancount Converter
 
-A Python tool to retrieve transaction data from PocketSmith and convert it to Beancount format for local storage and accounting.
+A comprehensive Python tool to retrieve transaction data from PocketSmith, convert it to Beancount format, and automate transaction processing with intelligent rules for categorization and enrichment.
 
 ## Overview
 
 This project provides a comprehensive way to:
-- Fetch transaction data from PocketSmith via their API with pagination support
-- Convert transactions to Beancount format with proper account mapping
-- Include PocketSmith metadata, labels as tags, and review flags
-- Validate output with bean-check integration
-- Store the data locally for accounting and analysis
+- **Fetch transaction data** from PocketSmith via their API with pagination support
+- **Convert transactions** to Beancount format with proper account mapping
+- **Apply intelligent rules** for automated transaction categorization and enrichment
+- **Synchronize bidirectionally** between PocketSmith and local Beancount files
+- **Include rich metadata** with PocketSmith IDs, labels as tags, and review flags
+- **Validate output** with bean-check integration
+- **Store data locally** for accounting and analysis with hierarchical file organization
 
 ## Features
 
+### 🔄 Data Synchronization
 - **Complete data sync**: Fetches all transactions, accounts, categories, and balances
-- **Proper formatting**: Uses correct commodity capitalization and account names
-- **Rich metadata**: Includes PocketSmith IDs, labels as tags, and review flags
-- **Validation**: Integrated bean-check validation for output files
-- **Pagination**: Handles large datasets with automatic pagination
-- **CLI interface**: Date range filtering and flexible configuration
-- **Hierarchical file structure**: Organize transactions by year/month with top-level declarations
-- **Transaction changelog**: Track changes with compact AEST timestamped logs
-- **Enhanced metadata**: Last modified timestamps, closing balances, and decimal ID format
-- **Incremental updates**: Support for archive-based updates with change detection
 - **Bidirectional synchronization**: Keep PocketSmith and beancount data in sync with intelligent conflict resolution
 - **Field-specific resolution**: Different sync strategies for different data types (amounts, notes, categories, tags)
 - **Write-back support**: Update PocketSmith via REST API when local changes are detected
+- **Pagination**: Handles large datasets with automatic pagination
+
+### 📋 Transaction Rules (Phase 8 ✅)
+- **YAML rule definitions**: Define rules with flexible if/then logic for automated processing
+- **Pattern matching**: Regex-based matching on account, category, and merchant fields  
+- **Smart transforms**: Automatic category assignment, label management, memo updates, and metadata enrichment
+- **Priority ordering**: Rules applied by ID with first-match semantics
+- **Interactive rule creation**: CLI tools for creating rules interactively or via command line
+- **Dry-run support**: Preview rule applications before making changes
+
+### 🗂️ File Organization  
+- **Proper formatting**: Uses correct commodity capitalization and account names
+- **Hierarchical file structure**: Organize transactions by year/month with top-level declarations
+- **Rich metadata**: Includes PocketSmith IDs, labels as tags, and review flags
+- **Enhanced metadata**: Last modified timestamps, closing balances, and decimal ID format
+- **Transaction changelog**: Track changes with compact AEST timestamped logs
+
+### 🛠️ Development & Validation
+- **CLI interface**: Command-based interface with sync, apply, and add-rule commands
+- **Validation**: Integrated bean-check validation for output files
+- **Incremental updates**: Support for archive-based updates with change detection
+- **Comprehensive testing**: 341+ tests including property-based and integration testing
 
 ## Setup
 
@@ -42,39 +58,78 @@ This project provides a comprehensive way to:
 
 ## Usage
 
-### Basic Operations
+The tool now uses a **command-based interface** for better organization of functionality.
+
+### Data Synchronization
 
 ```bash
-# Fetch and convert transactions (single file)
-uv run python -m src.pocketsmith_beancount.main
+# Download and convert transactions (single file)
+uv run python -m src.pocketsmith_beancount.main sync
 
-# Run with specific date range
-uv run python -m src.pocketsmith_beancount.main --start-date 2024-01-01 --end-date 2024-12-31
+# Download with specific date range
+uv run python -m src.pocketsmith_beancount.main sync --start-date 2024-01-01 --end-date 2024-12-31
 
 # Use hierarchical file structure (recommended for large datasets)
-uv run python -m src.pocketsmith_beancount.main --hierarchical
+uv run python -m src.pocketsmith_beancount.main sync --hierarchical
 
-# Specify custom output directory
-uv run python -m src.pocketsmith_beancount.main --output-dir /path/to/output --hierarchical
+# Bidirectional synchronization between PocketSmith and beancount
+uv run python -m src.pocketsmith_beancount.main sync --sync
+
+# Sync with dry-run mode (preview changes without applying them)
+uv run python -m src.pocketsmith_beancount.main sync --sync --dry-run
+
+# Sync with verbose logging and custom output directory
+uv run python -m src.pocketsmith_beancount.main sync --sync --sync-verbose --output-dir /path/to/output
 ```
 
-### Synchronization Operations
+### Transaction Rules (Phase 8 ✅)
 
 ```bash
-# Synchronize changes between PocketSmith and beancount
-uv run python -m src.pocketsmith_beancount.main --sync
+# Apply rules to transactions
+uv run python -m src.pocketsmith_beancount.main apply --rules-file rules.yaml
 
-# Sync with dry-run mode (show what would be changed without making changes)
-uv run python -m src.pocketsmith_beancount.main --sync --dry-run
+# Apply rules with dry-run to preview changes
+uv run python -m src.pocketsmith_beancount.main apply --rules-file rules.yaml --dry-run
 
-# Sync with verbose logging for detailed operation tracking
-uv run python -m src.pocketsmith_beancount.main --sync --sync-verbose
+# Apply rules to specific transactions only
+uv run python -m src.pocketsmith_beancount.main apply --rules-file rules.yaml --transaction-ids 123 456 789
 
-# Sync with custom batch size for API operations
-uv run python -m src.pocketsmith_beancount.main --sync --sync-batch-size 50
+# Create a new rule interactively
+uv run python -m src.pocketsmith_beancount.main add-rule --interactive
 
-# Combine sync with hierarchical structure and date range
-uv run python -m src.pocketsmith_beancount.main --sync --hierarchical --start-date 2024-01-01
+# Create a rule via command line
+uv run python -m src.pocketsmith_beancount.main add-rule --rule-id 1 --merchant "Starbucks" --new-category "Dining" --labels "coffee,beverages"
+```
+
+### Rule File Example
+
+Create a `rules.yaml` file for automated transaction processing:
+
+```yaml
+- id: 1
+  if:
+    - merchant: "McDonalds"
+  then:
+    - category: "Dining"
+    - labels: ["fast-food", "restaurants"]
+
+- id: 2
+  if:
+    - merchant: "UNITED AIRLINES"
+  then:
+    - category: "Transport"
+    - labels: ["flights", "business"]
+    - metadata:
+        expense_type: "business"
+        reimbursable: true
+
+- id: 3
+  if:
+    - account: "credit"
+    - merchant: "Amazon"
+  then:
+    - category: "Shopping"
+    - memo: "Online purchase"
 ```
 
 ## Development
@@ -84,6 +139,9 @@ uv run python -m src.pocketsmith_beancount.main --sync --hierarchical --start-da
 - `python-dotenv`: Environment variable management
 - `beancount`: Beancount library for financial data validation
 - `pytz`: Timezone handling for AEST timestamps
+- `PyYAML`: YAML parsing for rule definitions
+- `regex`: Advanced regex features for pattern matching
+- `colorama`: Colored terminal output for enhanced UX
 
 ### Development Tools
 - `ruff`: Linting and formatting

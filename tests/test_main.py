@@ -11,9 +11,11 @@ class TestMain:
     def test_main_argument_parsing(self, mock_print, mock_parse_args, mock_load_dotenv):
         """Test CLI argument parsing"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.start_date = "2024-01-01"
         mock_args.end_date = "2024-01-31"
         mock_args.output_dir = None
@@ -55,9 +57,11 @@ class TestMain:
     def test_main_api_key_missing(self, mock_print, mock_parse_args, mock_load_dotenv):
         """Test error handling for missing API key"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.hierarchical = False
         mock_args.start_date = None
         mock_args.end_date = None
@@ -90,9 +94,11 @@ class TestMain:
     ):
         """Test handling of API errors"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.hierarchical = False
         mock_args.start_date = None
         mock_args.end_date = None
@@ -134,10 +140,12 @@ class TestMain:
     def test_main_file_write_error(self, mock_print, mock_parse_args, mock_load_dotenv):
         """Test handling of file write errors"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.hierarchical = False
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.start_date = None
         mock_args.end_date = None
         mock_args.account_id = None
@@ -189,9 +197,11 @@ class TestMain:
     def test_main_success_flow(self, mock_print, mock_parse_args, mock_load_dotenv):
         """Test successful end-to-end execution (mocked)"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.start_date = "2024-01-01"
         mock_args.end_date = "2024-01-31"
         mock_args.output_dir = None
@@ -269,9 +279,11 @@ class TestMain:
     ) -> None:
         """Test successful balance extraction from transaction accounts"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.start_date = "2024-01-01"
         mock_args.end_date = "2024-01-31"
         mock_args.output_dir = None
@@ -356,9 +368,11 @@ class TestMain:
     ) -> None:
         """Test handling of missing balance data in transaction accounts"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.start_date = "2024-01-01"
         mock_args.end_date = "2024-01-31"
         mock_args.output_dir = None
@@ -430,9 +444,11 @@ class TestMain:
     ) -> None:
         """Test when some accounts have balance data and others don't"""
         mock_args = Mock()
+        mock_args.command = "sync"  # Add command for new CLI structure
         mock_args.sync = False
         mock_args.dry_run = False
         mock_args.sync_verbose = False
+        mock_args.verbose = False
         mock_args.start_date = "2024-01-01"
         mock_args.end_date = "2024-01-31"
         mock_args.output_dir = None
