@@ -16,9 +16,11 @@ This project provides a comprehensive way to:
 ## Features
 
 ### 🔄 Data Synchronization
-- **Modern CLI**: Phase 9 introduces `clone` and `pull` commands with intelligent sync capabilities
+- **Modern CLI**: Phase 9 introduces `clone`, `pull`, and `diff` commands with intelligent sync capabilities
 - **Complete data sync**: Fetches all transactions, accounts, categories, and balances
 - **Incremental updates**: `pull` command uses `updated_since` parameter for efficient syncing
+- **Smart updates**: Uses field resolver strategies instead of naive overwrite during pull operations
+- **Difference detection**: `diff` command compares local and remote data without modifying anything
 - **Change detection**: Automatic detection of new and modified transactions with detailed logging
 - **Bidirectional synchronization**: Keep PocketSmith and beancount data in sync with intelligent conflict resolution
 - **Field-specific resolution**: Different sync strategies for different data types (amounts, notes, categories, tags)
@@ -42,10 +44,12 @@ This project provides a comprehensive way to:
 - **Flexible output**: Support for both single-file and hierarchical output structures
 
 ### 🛠️ Development & Validation
-- **Modern CLI interface**: Phase 9 introduces `clone` and `pull` commands with comprehensive options and quiet mode
+- **Modern CLI interface**: Phase 9 introduces `clone`, `pull`, and `diff` commands with comprehensive options
+- **Default file detection**: Automatically finds main.beancount or .beancount with matching .log file
 - **Legacy CLI support**: Backward compatible sync, apply, and add-rule commands
 - **Validation**: Integrated bean-check validation for output files
 - **Dry-run support**: Preview changes before applying them with `--dry-run` option
+- **Verbose mode**: Detailed output with `-v` flag for pull operations
 - **Comprehensive testing**: 450+ tests including property-based and integration testing
 
 ## Setup
@@ -65,11 +69,14 @@ This project provides a comprehensive way to:
 
 The tool uses a **command-based interface** for better organization of functionality. Phase 9 introduces an improved CLI with the new `clone` command powered by typer.
 
-### Clone Command (Phase 9)
+### Clone Command (Phase 9 ✅)
 
 The `clone` command provides a modern, flexible interface for downloading PocketSmith data and creating a new ledger with changelog:
 
 ```bash
+# Clone transactions (auto-detects local beancount files if no destination provided)
+uv run python main.py clone
+
 # Download to hierarchical structure (default: output/ with main.beancount and main.log)
 uv run python main.py clone output/
 
@@ -89,16 +96,25 @@ uv run python main.py clone --last-year output/
 uv run python main.py clone --quiet output/
 ```
 
-### Pull Command (Phase 9)
+### Pull Command (Phase 9 ✅)
 
-The `pull` command updates an existing ledger with recent PocketSmith data, using intelligent sync and change tracking:
+The `pull` command updates an existing ledger with recent PocketSmith data, using intelligent sync and change tracking with field resolver strategies:
 
 ```bash
-# Update ledger with recent changes
+# Update existing ledger (auto-detects local files)
+uv run python main.py pull
+
+# Update specific ledger with recent changes
 uv run python main.py pull output/
 
 # Update with dry-run (preview changes)
 uv run python main.py pull --dry-run output/
+
+# Update with verbose mode (shows UPDATE entries)
+uv run python main.py pull -v output/
+
+# Combine dry-run and verbose to preview updates
+uv run python main.py pull -n -v output/
 
 # Pull specific date range (expands sync scope)
 uv run python main.py pull --from 2024-02-01 --to 2024-02-29 output/
@@ -108,6 +124,39 @@ uv run python main.py pull --this-month output/
 
 # Quiet mode
 uv run python main.py pull --quiet output/
+```
+
+### Diff Command (Phase 9 ✅)
+
+The `diff` command compares local and remote data without making any changes:
+
+```bash
+# Compare local and remote data (auto-detects local files)
+uv run python main.py diff
+
+# Compare specific ledger
+uv run python main.py diff output/
+
+# Show summary of differences (default)
+uv run python main.py diff --format summary output/
+
+# Show only transaction IDs that differ
+uv run python main.py diff --format ids output/
+
+# Show differences in changelog format
+uv run python main.py diff --format changelog output/
+
+# Show differences in traditional diff format
+uv run python main.py diff --format diff output/
+
+# Compare specific date range
+uv run python main.py diff --from 2024-01-01 --to 2024-01-31 output/
+
+# Compare current month
+uv run python main.py diff --this-month output/
+
+# Compare last year
+uv run python main.py diff --last-year output/
 ```
 
 ### Data Synchronization (Legacy)

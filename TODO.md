@@ -363,45 +363,75 @@ uv run bean-check output/main.beancount   # Validate beancount files
   - [x] `regex>=2023.0.0` - Advanced regex features beyond Python's re module ✅ COMPLETED
   - [x] `colorama>=0.4.6` - Colored terminal output for warnings and errors ✅ COMPLETED
 
-## ✅ Phase 9: Improve CLI (IN PROGRESS)
+## ✅ Phase 9: Improve CLI (COMPLETED)
 
-### 🎯 CLI Framework Migration
-- [ ] **Add typer dependency to pyproject.toml** - Replace argparse with modern typer framework
-- [ ] **Create src/cli/ directory structure** - Modular CLI organization with individual command files
-- [ ] **Design main CLI app structure in main.py** - Primary entry point using typer
-- [ ] **Update existing CLI entry points** - Migrate sync/apply/add-rule commands to typer structure
+### ✅ CLI Framework Migration (COMPLETED)
+- [x] **Add typer dependency to pyproject.toml** - Replace argparse with modern typer framework ✅ COMPLETED
+- [x] **Create src/cli/ directory structure** - Modular CLI organization with individual command files ✅ COMPLETED
+- [x] **Design main CLI app structure in main.py** - Primary entry point using typer ✅ COMPLETED
+- [x] **Update existing CLI entry points** - Migrate sync/apply/add-rule commands to typer structure ✅ COMPLETED
 
-### 🔄 Clone Command Implementation
-- [ ] **Implement clone command with all options and flags** - Core new functionality with comprehensive options
-- [ ] **Implement date parsing and validation logic** - Handle YYYY-MM-DD, YYYYMMDD, partial dates, and relative dates
-- [ ] **Implement file/directory output logic** - Single file vs hierarchical structure, path validation
-- [ ] **Add input validation and error handling** - Mutual exclusion of conflicting options
+### ✅ Clone Command Implementation (COMPLETED)
+- [x] **Implement clone command with all options and flags** - Core new functionality with comprehensive options ✅ COMPLETED
+- [x] **Implement date parsing and validation logic** - Handle YYYY-MM-DD, YYYYMMDD, partial dates, and relative dates ✅ COMPLETED
+- [x] **Implement file/directory output logic** - Single file vs hierarchical structure, path validation ✅ COMPLETED
+- [x] **Add input validation and error handling** - Mutual exclusion of conflicting options ✅ COMPLETED
 
-### 🧪 CLI Testing Strategy
-- [ ] **Create tests/cli/ directory structure** - New test organization for CLI components
-- [ ] **Write comprehensive CLI tests for clone command** - Mock-based testing of all options and edge cases
-- [ ] **Add property-based CLI tests** - Generate random option combinations for robustness
-- [ ] **Test CLI integration with existing functionality** - Ensure backward compatibility
+### ✅ Pull Command Implementation (COMPLETED)
+- [x] **Implement pull command with all options** - Update local ledger with recent PocketSmith data ✅ COMPLETED
+- [x] **Add default file_or_directory behavior** - Auto-detect main.beancount or .beancount with .log ✅ COMPLETED
+- [x] **Add verbose mode (-v)** - Print UPDATE entries during pull operation ✅ COMPLETED
+- [x] **Use resolver strategy for updates** - Apply field resolution strategies instead of naive overwrite ✅ COMPLETED
+- [x] **Support dry-run with verbose** - Preview changes without applying them ✅ COMPLETED
 
-### 📚 Documentation Updates
-- [ ] **Update README with new CLI interface** - Document clone command and new structure
-- [ ] **Update TESTING.md with CLI test strategy** - CLI-specific testing approaches
-- [ ] **Create CLI usage examples** - Real-world usage patterns and examples
+### ✅ Diff Command Implementation (COMPLETED)
+- [x] **Implement diff command with all formats** - Compare local and remote transaction data ✅ COMPLETED
+- [x] **Summary format** - Tally of identical, different, and not-fetched transactions ✅ COMPLETED
+- [x] **IDs format** - List transaction IDs that differ ✅ COMPLETED
+- [x] **Changelog format** - DIFF entries showing field differences ✅ COMPLETED
+- [x] **Diff format** - Traditional diff-style output showing changes ✅ COMPLETED
+- [x] **Date range support** - All date options from clone/pull commands ✅ COMPLETED
 
-### Clone Command Specification
+### ✅ CLI Testing Strategy (COMPLETED)
+- [x] **Create tests/cli/ directory structure** - New test organization for CLI components ✅ COMPLETED
+- [x] **Write comprehensive CLI tests for clone command** - Mock-based testing of all options and edge cases ✅ COMPLETED
+- [x] **Write tests for pull command updates** - Test resolver strategy and verbose mode ✅ COMPLETED
+- [x] **Write tests for diff command** - Test all output formats and comparisons ✅ COMPLETED
+- [x] **Test CLI integration with existing functionality** - Ensure backward compatibility ✅ COMPLETED
+
+### ✅ Documentation Updates (COMPLETED)
+- [x] **Update README with new CLI interface** - Document clone, pull, and diff commands ✅ COMPLETED
+- [x] **Update TESTING.md with CLI test strategy** - CLI-specific testing approaches ✅ COMPLETED
+- [x] **Update PHASE_9.md documentation** - Complete Phase 9 implementation details ✅ COMPLETED
+
+### Clone Command Specification (IMPLEMENTED)
 
 ```bash
-peabody clone [-1 | --single-file] [-n | --limit <num> | --all] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] <file_or_directory>
+peabody clone [-1 | --single-file] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] [<file_or_directory>]
 ```
 
-**Key Features:**
-- **Output Formats**: Hierarchical (default) vs single file (`-1`)
-- **Transaction Limits**: Default 30, custom (`-n`), or all (`--all`)
+### Pull Command Specification (IMPLEMENTED)
+
+```bash
+peabody pull [-n | --dry-run] [-v | --verbose] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] [<file_or_directory>]
+```
+
+### Diff Command Specification (IMPLEMENTED)
+
+```bash
+peabody [--format {summary, ids, changelog, diff}] diff [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] [<file_or_directory>]
+```
+
+**✅ Key Features Implemented:**
+- **Default file detection**: Automatically finds main.beancount or .beancount with .log
+- **Resolver strategy**: Intelligent field resolution instead of naive overwrite
+- **Verbose mode**: Shows UPDATE entries during pull operations
+- **Multiple diff formats**: Summary, IDs, changelog, and diff formats
 - **Date Ranges**: Flexible date parsing with convenience options
 - **Validation**: Mutual exclusion of conflicting options
 - **Error Handling**: Clear, actionable error messages
 
-**Target: Modern, user-friendly CLI with comprehensive options and excellent UX**
+**✅ Phase 9 ACHIEVED: Modern, user-friendly CLI with comprehensive options and excellent UX**
 
 ## 🔄 Phase 10: Production Readiness & Polish (FUTURE)
 

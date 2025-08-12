@@ -146,6 +146,7 @@ def pull_command(
     this_year: bool = False,
     last_year: bool = False,
     dry_run: bool = False,
+    verbose: bool = False,
     quiet: bool = False,
 ) -> None:
     """Update local Beancount ledger with recent PocketSmith data.
@@ -293,6 +294,11 @@ def pull_command(
             existing_transactions, all_transactions
         )
 
+        # If verbose mode and dry_run, print what would be updated
+        if dry_run and verbose:
+            for txn_id, key, old_val, new_val in comparator.changes:
+                typer.echo(f"UPDATE {txn_id} {key} {old_val} → {new_val}")
+
         # Process updates if not dry run
         if not dry_run:
             # Fetch account balances
@@ -348,9 +354,13 @@ def pull_command(
             )
             changelog.write_pull_entry(since_timestamp, start_date_str, end_date_str)
 
-            # Write overwrite entries
+            # Write UPDATE entries (using resolver strategy)
             for txn_id, key, old_val, new_val in comparator.changes:
-                changelog.write_overwrite_entry(txn_id, key, old_val, new_val)
+                changelog.write_update_entry(txn_id, key, old_val, new_val)
+
+                # Print update if verbose mode is enabled
+                if verbose:
+                    typer.echo(f"UPDATE {txn_id} {key} {old_val} → {new_val}")
 
         # Print summary
         if not quiet:

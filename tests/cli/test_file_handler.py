@@ -9,6 +9,7 @@ from src.cli.file_handler import (
     ensure_beancount_extension,
     create_hierarchical_structure,
     get_output_file_path,
+    find_default_beancount_file,
     FileHandlerError,
 )
 
@@ -151,6 +152,102 @@ class TestGetOutputFilePath:
         destination = Path("path") / "to" / "output_dir"
         result = get_output_file_path(destination, single_file=False)
         assert result == Path("path") / "to" / "output_dir" / "main.beancount"
+
+
+class TestFindDefaultBeancountFile:
+    """Test finding default beancount file."""
+
+    def test_find_main_beancount(self):
+        """Test finding main.beancount in current directory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create main.beancount
+            main_file = Path(temp_dir) / "main.beancount"
+            main_file.touch()
+
+            # Change to temp directory
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                result = find_default_beancount_file()
+                assert (
+                    result.resolve() == Path(temp_dir).resolve()
+                )  # Returns directory for hierarchical mode
+            finally:
+                os.chdir(original_cwd)
+
+    def test_find_beancount_with_log(self):
+        """Test finding .beancount file with matching .log file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create transactions.beancount and transactions.log
+            beancount_file = Path(temp_dir) / "transactions.beancount"
+            log_file = Path(temp_dir) / "transactions.log"
+            beancount_file.touch()
+            log_file.touch()
+
+            # Change to temp directory
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                result = find_default_beancount_file()
+                assert (
+                    result.resolve() == beancount_file.resolve()
+                )  # Returns file for single file mode
+            finally:
+                os.chdir(original_cwd)
+
+    def test_find_prefers_main_beancount(self):
+        """Test that main.beancount is preferred over other files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create both main.beancount and another .beancount with .log
+            main_file = Path(temp_dir) / "main.beancount"
+            other_file = Path(temp_dir) / "other.beancount"
+            other_log = Path(temp_dir) / "other.log"
+            main_file.touch()
+            other_file.touch()
+            other_log.touch()
+
+            # Change to temp directory
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                result = find_default_beancount_file()
+                assert (
+                    result.resolve() == Path(temp_dir).resolve()
+                )  # Prefers main.beancount
+            finally:
+                os.chdir(original_cwd)
+
+    def test_find_no_suitable_file_raises_error(self):
+        """Test that error is raised when no suitable file is found."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create .beancount without .log
+            beancount_file = Path(temp_dir) / "transactions.beancount"
+            beancount_file.touch()
+
+            # Change to temp directory
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                with pytest.raises(
+                    FileHandlerError, match="No suitable beancount file found"
+                ):
+                    find_default_beancount_file()
+            finally:
+                os.chdir(original_cwd)
+
+    def test_find_empty_directory_raises_error(self):
+        """Test that error is raised in empty directory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Change to empty temp directory
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                with pytest.raises(
+                    FileHandlerError, match="No suitable beancount file found"
+                ):
+                    find_default_beancount_file()
+            finally:
+                os.chdir(original_cwd)
 
 
 class TestFileHandlerEdgeCases:
