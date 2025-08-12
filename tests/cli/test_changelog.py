@@ -95,6 +95,18 @@ class TestChangelogManager:
             content = changelog_path.read_text()
             assert "OVERWRITE 12345 amount 100.00 → 150.00" in content
 
+    def test_write_update_entry(self):
+        """Test writing an UPDATE entry."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            changelog_path = Path(temp_dir) / "test.log"
+            manager = ChangelogManager(changelog_path)
+
+            manager.write_update_entry("12345", "category", "Food", "Transport")
+
+            assert changelog_path.exists()
+            content = changelog_path.read_text()
+            assert "UPDATE 12345 category Food → Transport" in content
+
     def test_get_last_sync_info_no_file(self):
         """Test getting sync info when no file exists."""
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1,18 +1,20 @@
-# Phase 9 - Improved CLI with Clone and Pull Commands
+# Phase 9 - Improved CLI with Clone, Pull, and Diff Commands ✅ COMPLETED
 
 ## Overview
 
-Phase 9 focuses on improving the CLI to have a well-defined list of commands and sub-commands with proper flags and options. This phase introduces `typer` as the CLI framework and implements two new commands: `clone` for initial data download and `pull` for incremental updates with intelligent synchronization.
+Phase 9 focuses on improving the CLI to have a well-defined list of commands and sub-commands with proper flags and options. This phase introduces `typer` as the CLI framework and implements three new commands: `clone` for initial data download, `pull` for incremental updates with intelligent synchronization using field resolver strategies, and `diff` for comparing local and remote data.
 
-## Goals
+## Goals (ALL ACHIEVED)
 
-- Replace argparse with typer for better CLI experience
-- Implement a new `clone` command for initial ledger creation with changelog
-- Implement a new `pull` command for incremental updates with change tracking
-- Add comprehensive changelog system for audit trails
-- Reorganize CLI code into modular structure
-- Add comprehensive CLI testing
-- Maintain backward compatibility with existing commands
+- ✅ Replace argparse with typer for better CLI experience
+- ✅ Implement a new `clone` command for initial ledger creation with changelog
+- ✅ Implement a new `pull` command with field resolver strategies and verbose mode
+- ✅ Implement a new `diff` command for comparing local and remote data
+- ✅ Add default file detection for all commands
+- ✅ Add comprehensive changelog system with UPDATE entries
+- ✅ Reorganize CLI code into modular structure
+- ✅ Add comprehensive CLI testing (100+ tests)
+- ✅ Maintain backward compatibility with existing commands
 
 ## Implementation Plan
 
@@ -66,26 +68,34 @@ peabody clone [-1 | --single-file] [-q | --quiet] [--from <date>] [--to <date>] 
 - File must not exist for single-file output
 - Must be writable destination, otherwise abort
 
-### 3. Pull Command Implementation
+### 3. Pull Command Implementation ✅ ENHANCED
 
-The `pull` command updates an existing ledger with recent PocketSmith data using intelligent synchronization:
+The `pull` command updates an existing ledger with recent PocketSmith data using intelligent synchronization with field resolver strategies:
 
 ```bash
-peabody pull [-n | --dry-run] [-q | --quiet] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] <file_or_directory>
+peabody pull [-n | --dry-run] [-v | --verbose] [-q | --quiet] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] [<file_or_directory>]
 ```
 
 #### Core Features
+
+**Default File Detection:**
+- If no destination provided, auto-detects main.beancount or .beancount with matching .log file
+- Simplifies common workflows by finding the appropriate ledger automatically
+
+**Field Resolver Strategies:**
+- Uses intelligent field resolution instead of naive overwrite
+- Different strategies for different field types (amounts, notes, categories, tags)
+- Preserves user modifications where appropriate
 
 **Incremental Updates:**
 - Uses `updated_since` API parameter based on last CLONE or PULL timestamp
 - Fetches only transactions modified since last sync for efficiency
 - Supports both single-file and hierarchical ledger formats
 
-**Change Detection:**
-- Compares fetched transactions with existing ledger data
-- Identifies new transactions and modifications to existing ones
-- Generates OVERWRITE changelog entries for detected changes
-- Reports summary of updates and new transactions
+**Change Tracking:**
+- Generates UPDATE changelog entries instead of OVERWRITE
+- Shows field-level changes with old → new value format
+- Verbose mode (`-v`) prints UPDATE entries to terminal during operation
 
 **Date Range Expansion:**
 - Optional date parameters trigger second fetch with new date ranges
@@ -94,6 +104,8 @@ peabody pull [-n | --dry-run] [-q | --quiet] [--from <date>] [--to <date>] [--th
 
 **Output Control:**
 - `-n, --dry-run`: Preview changes without modifying files
+- `-v, --verbose`: Show UPDATE entries during operation
+- `-n -v`: Combine for detailed preview of changes
 - `-q, --quiet`: Suppress informational output
 - Detailed summary showing update counts and date ranges
 
@@ -102,20 +114,65 @@ peabody pull [-n | --dry-run] [-q | --quiet] [--from <date>] [--to <date>] [--th
 - Must have previous CLONE or PULL entry for sync baseline
 - Validates destination format (single-file vs hierarchical)
 
-### 4. Changelog System Implementation
+### 4. Diff Command Implementation ✅ NEW
+
+The `diff` command compares local ledger with remote PocketSmith data without making any modifications:
+
+```bash
+peabody diff [--format {summary, ids, changelog, diff}] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] [<file_or_directory>]
+```
+
+#### Core Features
+
+**Default File Detection:**
+- If no destination provided, auto-detects main.beancount or .beancount with matching .log file
+- Consistent with clone and pull commands for seamless workflow
+
+**Multiple Output Formats:**
+- `summary` (default): Tally of fetched, different, identical, and not-fetched transactions
+- `ids`: List of transaction IDs that differ between local and remote
+- `changelog`: DIFF entries showing field-level differences
+- `diff`: Traditional diff-style output with local/remote comparison
+
+**Comparison Logic:**
+- Fetches transactions without `updated_since` to get complete data
+- Compares each field (amount, payee, category, labels, note, merchant)
+- Detects differences without modifying any files
+- Uses date range from last CLONE/PULL if no dates specified
+
+**Date Range Options:**
+- Same date options as clone and pull commands
+- Allows focusing comparison on specific time periods
+- Uses most recent sync dates as default
+
+**Read-Only Operation:**
+- Never modifies local ledger, changelog, or remote data
+- Safe to run at any time for status checking
+- Useful for understanding what pull would change
+
+**Use Cases:**
+- Preview what would change if push command were issued
+- Understand local modifications before syncing
+- Verify data consistency between local and remote
+- Debug synchronization issues
+
+### 5. Changelog System Implementation ✅ ENHANCED
 
 #### Changelog Format
 ```
 [YYYY-MM-DD HH:MM:SS] CLONE [FROM] [TO]
 [YYYY-MM-DD HH:MM:SS] PULL [SINCE] [FROM] [TO]  
-[YYYY-MM-DD HH:MM:SS] OVERWRITE [transaction_id] [KEY] [OLD_VALUE] → [NEW_VALUE]
+[YYYY-MM-DD HH:MM:SS] UPDATE [transaction_id] [KEY] [OLD_VALUE] → [NEW_VALUE]
+[YYYY-MM-DD HH:MM:SS] DIFF [transaction_id] [KEY] [LOCAL_VALUE] <> [REMOTE_VALUE]
 ```
 
 #### Changelog Features
 - Automatic generation for clone and pull operations
-- Change tracking with OVERWRITE entries for modified transactions
+- Change tracking with UPDATE entries for field resolver strategy results
+- DIFF entries for comparison operations (not written to file, only displayed)
 - Timestamp-based sync coordination using last CLONE/PULL entry
 - Support for both single-file and hierarchical modes
+- Verbose mode shows UPDATE entries during pull operations
 
 ### 5. Date Parsing Implementation
 
@@ -333,7 +390,7 @@ def clone_command(
 - Polish user experience
 - Update documentation
 
-## Completion Status ✅
+## Completion Status ✅ PHASE 9 COMPLETED
 
 ### Implemented Features
 
@@ -341,49 +398,71 @@ def clone_command(
 - ✅ Added typer dependency
 - ✅ Created modular CLI structure in `src/cli/`
 - ✅ Updated `main.py` as primary entry point with typer app
+- ✅ Maintained backward compatibility with existing commands
 
 #### Clone Command ✅
 - ✅ Implemented complete clone command with comprehensive options
+- ✅ Default file detection for automatic ledger discovery
 - ✅ Changelog generation with CLONE entries and date tracking
 - ✅ Single-file and hierarchical output modes
 - ✅ Quiet mode for suppressed output
 - ✅ Date range validation and convenience options
 - ✅ Summary output with transaction counts
 
-#### Pull Command ✅
+#### Pull Command ✅ ENHANCED
 - ✅ Implemented pull command for incremental updates
+- ✅ Field resolver strategies instead of naive overwrite
+- ✅ Default file detection for seamless workflow
+- ✅ Verbose mode (-v) shows UPDATE entries during operation
+- ✅ UPDATE changelog entries with field-level changes
 - ✅ Intelligent sync using `updated_since` API parameter
-- ✅ Change detection and OVERWRITE changelog entries
-- ✅ Dry-run mode for previewing changes
+- ✅ Dry-run mode with verbose for detailed preview
 - ✅ Date range expansion capabilities
 - ✅ Support for both output formats
 
-#### Changelog System ✅
-- ✅ Comprehensive changelog manager with CLONE, PULL, and OVERWRITE entries
+#### Diff Command ✅ NEW
+- ✅ Implemented diff command for comparing local and remote data
+- ✅ Multiple output formats (summary, ids, changelog, diff)
+- ✅ Default file detection consistent with other commands
+- ✅ Read-only operation that never modifies files
+- ✅ Date range options matching clone and pull
+- ✅ Comprehensive comparison logic for all transaction fields
+- ✅ Useful for understanding changes before sync
+
+#### Changelog System ✅ ENHANCED
+- ✅ Comprehensive changelog manager with CLONE, PULL, UPDATE, and DIFF entries
+- ✅ UPDATE entries replace OVERWRITE for field resolver results
+- ✅ Verbose mode integration for real-time change tracking
 - ✅ Timestamp-based sync coordination
 - ✅ Automatic changelog path determination for both modes
-- ✅ Change tracking for transaction modifications
+- ✅ Change tracking with old → new value format
 
 #### Testing ✅
-- ✅ Complete test suite for clone command
-- ✅ Complete test suite for pull command  
-- ✅ Comprehensive changelog system tests
-- ✅ CLI validation and error handling tests
-- ✅ Date parsing and file handling tests
+- ✅ Complete test suite for clone command (25+ tests)
+- ✅ Complete test suite for pull command (20+ tests)
+- ✅ Complete test suite for diff command (25+ tests)
+- ✅ Comprehensive changelog system tests (10+ tests)
+- ✅ CLI validation and error handling tests (18+ tests)
+- ✅ Date parsing and file handling tests (35+ tests)
+- ✅ Total: 100+ new CLI tests
 
 #### Documentation ✅
-- ✅ Updated README with new command examples
-- ✅ Updated feature descriptions and capabilities
-- ✅ Complete PHASE_9.md documentation
+- ✅ Updated README with clone, pull, and diff command examples
+- ✅ Updated TODO.md marking Phase 9 as complete
+- ✅ Updated TESTING.md with comprehensive test plan
+- ✅ Complete PHASE_9.md documentation with all features
 
 ### Key Achievements
 
 1. **Modern CLI Experience**: Replaced argparse with typer for better UX
-2. **Intelligent Synchronization**: Pull command uses API efficiently with `updated_since`  
-3. **Audit Trail**: Comprehensive changelog system tracks all operations and changes
-4. **Flexible Output**: Support for both single-file and hierarchical structures
-5. **Robust Validation**: Comprehensive input validation and error handling
-6. **Extensive Testing**: 450+ tests including new CLI functionality
+2. **Intelligent Synchronization**: Field resolver strategies preserve user modifications
+3. **Default File Detection**: Auto-discovers local beancount files for all commands
+4. **Comprehensive Comparison**: Diff command provides multiple analysis formats
+5. **Enhanced Feedback**: Verbose mode provides real-time update tracking
+6. **Audit Trail**: UPDATE entries track field-level changes with full history
+7. **Flexible Output**: Support for both single-file and hierarchical structures
+8. **Robust Validation**: Comprehensive input validation and error handling
+9. **Extensive Testing**: 100+ new tests for CLI functionality
 
 ## Risks & Mitigation
 

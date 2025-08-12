@@ -103,3 +103,35 @@ def get_output_file_path(destination: Path, single_file: bool) -> Path:
     else:
         # For hierarchical mode, main file is in the destination directory
         return destination / "main.beancount"
+
+
+def find_default_beancount_file() -> Path:
+    """Find the default beancount file in the current directory.
+
+    Returns the first matching file in this order:
+    1. main.beancount in current directory
+    2. Any other .beancount file with a matching .log file
+
+    Returns:
+        Path to the beancount file
+
+    Raises:
+        FileHandlerError: If no suitable beancount file is found
+    """
+    current_dir = Path.cwd()
+
+    # First check for main.beancount
+    main_file = current_dir / "main.beancount"
+    if main_file.exists():
+        return current_dir  # Return directory for hierarchical mode
+
+    # Look for any .beancount file with matching .log file
+    for beancount_file in current_dir.glob("*.beancount"):
+        log_file = beancount_file.with_suffix(".log")
+        if log_file.exists():
+            return beancount_file  # Return file for single file mode
+
+    raise FileHandlerError(
+        "No suitable beancount file found in current directory. "
+        "Expected main.beancount or a .beancount file with matching .log file."
+    )

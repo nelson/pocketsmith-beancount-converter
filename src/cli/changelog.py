@@ -62,6 +62,17 @@ class ChangelogManager:
         )
         self._append_entry(entry)
 
+    def write_update_entry(
+        self, transaction_id: str, key: str, old_value: str, new_value: str
+    ) -> None:
+        """Write an UPDATE entry to the changelog."""
+        entry = ChangelogEntry(
+            timestamp=datetime.now(),
+            operation="UPDATE",
+            details=[transaction_id, key, f"{old_value} → {new_value}"],
+        )
+        self._append_entry(entry)
+
     def get_last_sync_info(
         self,
     ) -> Optional[Tuple[datetime, Optional[str], Optional[str]]]:

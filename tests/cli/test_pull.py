@@ -476,6 +476,114 @@ class TestPullCommandTransactionComparison:
             # Should detect the update
             assert "1 receiving updates" in result.output
 
-            # Check changelog contains OVERWRITE entry
+            # Check changelog contains UPDATE entry (not OVERWRITE)
             changelog_content = changelog_path.read_text()
-            assert "OVERWRITE" in changelog_content
+            assert "UPDATE" in changelog_content
+
+    @patch("src.cli.pull.read_existing_transactions")
+    @patch("src.cli.pull.PocketSmithClient")
+    def test_pull_verbose_mode_shows_updates(
+        self, mock_client_class, mock_read_existing
+    ):
+        """Test that verbose mode shows UPDATE entries."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest_path = Path(temp_dir) / "transactions.beancount"
+            changelog_path = Path(temp_dir) / "transactions.log"
+
+            # Create destination file and changelog
+            dest_path.write_text("existing content")
+            changelog_path.write_text(
+                "[2024-01-01 10:00:00] CLONE 2024-01-01 2024-01-31\n"
+            )
+
+            # Mock existing transactions
+            mock_read_existing.return_value = {
+                "1": {
+                    "id": 1,
+                    "payee": "Original Payee",
+                    "amount": "10.00",
+                    "category_id": 1,
+                }
+            }
+
+            # Mock the API client with updated transaction
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.get_user.return_value = {"login": "test_user"}
+            mock_client.get_transaction_accounts.return_value = []
+            mock_client.get_categories.return_value = []
+            mock_client.get_transactions.return_value = [
+                {
+                    "id": 1,
+                    "payee": "Updated Payee",  # Changed
+                    "amount": "10.00",
+                    "category_id": 2,  # Also changed
+                    "date": "2024-01-15",
+                    "currency_code": "USD",
+                }
+            ]
+
+            result = runner.invoke(app, ["pull", str(dest_path), "--verbose"])
+
+            assert result.exit_code == 0
+            # Should show UPDATE entries in output
+            assert "UPDATE 1 payee Original Payee → Updated Payee" in result.output
+            assert "UPDATE 1 category 1 → 2" in result.output
+
+    @patch("src.cli.pull.read_existing_transactions")
+    @patch("src.cli.pull.PocketSmithClient")
+    def test_pull_dry_run_verbose_shows_preview(
+        self, mock_client_class, mock_read_existing
+    ):
+        """Test that dry-run with verbose shows what would be updated."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest_path = Path(temp_dir) / "transactions.beancount"
+            changelog_path = Path(temp_dir) / "transactions.log"
+
+            # Create destination file and changelog
+            original_content = "original content"
+            dest_path.write_text(original_content)
+            original_changelog = "[2024-01-01 10:00:00] CLONE 2024-01-01 2024-01-31\n"
+            changelog_path.write_text(original_changelog)
+
+            # Mock existing transactions
+            mock_read_existing.return_value = {
+                "1": {
+                    "id": 1,
+                    "payee": "Original Payee",
+                    "amount": "10.00",
+                }
+            }
+
+            # Mock the API client with updated transaction
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.get_user.return_value = {"login": "test_user"}
+            mock_client.get_transaction_accounts.return_value = []
+            mock_client.get_categories.return_value = []
+            mock_client.get_transactions.return_value = [
+                {
+                    "id": 1,
+                    "payee": "Updated Payee",  # Changed
+                    "amount": "10.00",
+                    "date": "2024-01-15",
+                    "currency_code": "USD",
+                }
+            ]
+
+            result = runner.invoke(
+                app, ["pull", str(dest_path), "--dry-run", "--verbose"]
+            )
+
+            assert result.exit_code == 0
+            # Should show what would be updated
+            assert "UPDATE 1 payee Original Payee → Updated Payee" in result.output
+            assert "not updated (due to --dry-run)" in result.output
+
+            # Files should not be modified
+            assert dest_path.read_text() == original_content
+            assert changelog_path.read_text() == original_changelog
