@@ -614,3 +614,111 @@ uv run pytest tests/test_sync_cli.py -v
 - **✅ CLI Integration**: 13 tests covering command-line interface and user interaction
 - **✅ Property-based**: Integrated into existing property-based test suite
 - **✅ Error Handling**: Comprehensive error scenario coverage across all test suites
+
+## ✅ Phase 9: CLI Improvement Testing Strategy (IN PROGRESS)
+
+### **🎯 CLI Testing Implementation Plan**
+
+#### **✅ CLI Test Structure Setup**
+- [ ] **Create tests/cli/ directory** - New test organization for CLI components
+- [ ] **CLI test utilities** - Common mocking and testing utilities for CLI tests
+- [ ] **Test configuration** - pytest configuration for CLI-specific testing needs
+
+#### **🔧 Clone Command Testing** (`tests/cli/test_cli_clone.py`) - 25+ tests planned
+- [ ] **`test_clone_default_options()`** - Test clone with default settings (30 transactions, hierarchical)
+- [ ] **`test_clone_single_file_mode()`** - Test -1/--single-file option
+- [ ] **`test_clone_transaction_limits()`** - Test -n/--limit and --all options
+- [ ] **`test_clone_date_range_options()`** - Test --from and --to date options
+- [ ] **`test_clone_convenience_dates()`** - Test --this-month, --last-month, etc.
+- [ ] **`test_clone_path_validation()`** - Test destination path validation and creation
+- [ ] **`test_clone_extension_handling()`** - Test .beancount extension addition for single files
+- [ ] **`test_clone_mutual_exclusion_validation()`** - Test conflicting option detection
+- [ ] **`test_clone_error_messages()`** - Test clear, actionable error messages
+- [ ] **`test_clone_help_text()`** - Test help text completeness and accuracy
+
+#### **📅 Date Parsing Testing** (`tests/cli/test_date_parser.py`) - 20+ tests planned
+- [ ] **`test_parse_full_date_formats()`** - Test YYYY-MM-DD and YYYYMMDD formats
+- [ ] **`test_parse_partial_date_formats()`** - Test YYYY-MM and YYYY formats with expansion
+- [ ] **`test_parse_invalid_date_formats()`** - Test error handling for invalid dates
+- [ ] **`test_calculate_relative_dates()`** - Test this-month, last-month calculations
+- [ ] **`test_date_range_validation()`** - Test from/to date range validation
+- [ ] **`test_leap_year_handling()`** - Test leap year edge cases
+- [ ] **`test_month_boundary_handling()`** - Test month/year boundary calculations
+- [ ] **`test_timezone_handling()`** - Test date timezone considerations
+
+#### **📁 File Output Testing** (`tests/cli/test_file_handler.py`) - 15+ tests planned
+- [ ] **`test_hierarchical_output_structure()`** - Test default hierarchical file organization
+- [ ] **`test_single_file_output()`** - Test single file output with proper formatting
+- [ ] **`test_path_creation_and_validation()`** - Test directory creation and validation
+- [ ] **`test_file_extension_handling()`** - Test .beancount extension logic
+- [ ] **`test_permission_error_handling()`** - Test handling of write permission errors
+- [ ] **`test_existing_file_detection()`** - Test detection and handling of existing files
+
+#### **✅ Input Validation Testing** (`tests/cli/test_validators.py`) - 18+ tests planned
+- [ ] **`test_mutual_exclusion_all_vs_limit()`** - Test --all vs -n/--limit conflict detection
+- [ ] **`test_mutual_exclusion_date_options()`** - Test multiple convenience date conflicts
+- [ ] **`test_mutual_exclusion_convenience_vs_explicit()`** - Test convenience vs --from/--to conflicts
+- [ ] **`test_to_without_from_validation()`** - Test --to without --from error
+- [ ] **`test_option_combination_validation()`** - Test valid option combinations
+- [ ] **`test_validation_error_messages()`** - Test error message quality and clarity
+
+#### **🔗 CLI Integration Testing** (`tests/cli/test_cli_integration.py`) - 12+ tests planned
+- [ ] **`test_clone_end_to_end_hierarchical()`** - Test complete clone workflow with hierarchical output
+- [ ] **`test_clone_end_to_end_single_file()`** - Test complete clone workflow with single file
+- [ ] **`test_clone_with_api_mocking()`** - Test clone with mocked PocketSmith API responses
+- [ ] **`test_clone_error_recovery()`** - Test error handling and recovery scenarios
+- [ ] **`test_clone_with_large_datasets()`** - Test performance with large transaction sets
+- [ ] **`test_cli_backward_compatibility()`** - Test compatibility with existing commands
+
+#### **🧪 Property-Based CLI Testing** (`tests/cli/test_cli_property.py`) - 10+ tests planned
+- [ ] **`test_property_date_parsing_robustness()`** - Generate random date strings for parsing
+- [ ] **`test_property_path_handling()`** - Generate random path strings for validation
+- [ ] **`test_property_option_combinations()`** - Generate random option combinations
+- [ ] **`test_property_error_message_consistency()`** - Test consistent error message patterns
+
+### **📊 CLI Test Execution Commands**
+
+```bash
+# Run all CLI tests
+uv run pytest tests/cli/ -v
+
+# Run CLI tests with coverage
+uv run pytest tests/cli/ --cov=src.cli --cov-report=html
+
+# Run specific CLI test categories
+uv run pytest tests/cli/test_cli_clone.py -v        # Clone command tests
+uv run pytest tests/cli/test_date_parser.py -v     # Date parsing tests
+uv run pytest tests/cli/test_file_handler.py -v    # File output tests
+uv run pytest tests/cli/test_validators.py -v      # Input validation tests
+uv run pytest tests/cli/test_cli_integration.py -v # Integration tests
+
+# Run property-based CLI tests
+uv run pytest tests/cli/test_cli_property.py -v
+
+# Run CLI tests with specific markers
+uv run pytest -m "cli" -v                          # All CLI-related tests
+uv run pytest -m "clone" -v                        # Clone command specific tests
+
+# Test CLI help and documentation
+uv run pytest tests/cli/ -k "help" -v
+
+# Test CLI error handling
+uv run pytest tests/cli/ -k "error" -v
+```
+
+### **✅ Phase 9 Test Coverage Goals**
+- **✅ Target**: 100+ new tests for CLI functionality
+- **CLI Core**: 25+ tests for clone command implementation
+- **Date Parsing**: 20+ tests for flexible date handling
+- **File Output**: 15+ tests for output format handling
+- **Input Validation**: 18+ tests for option validation
+- **Integration**: 12+ tests for end-to-end CLI workflows
+- **Property-based**: 10+ tests for robustness and edge cases
+
+### **🎯 CLI Testing Success Criteria**
+- [ ] **Functional completeness** - All CLI options and flags work as specified
+- [ ] **Error handling** - Clear, actionable error messages for all failure scenarios
+- [ ] **User experience** - Help text, validation, and feedback meet usability standards
+- [ ] **Performance** - CLI startup and operation times meet performance requirements
+- [ ] **Compatibility** - Backward compatibility with existing CLI patterns maintained
+- [ ] **Documentation** - All CLI features documented with examples and usage patterns
