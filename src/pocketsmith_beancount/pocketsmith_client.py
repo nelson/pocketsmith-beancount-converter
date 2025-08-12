@@ -96,6 +96,7 @@ class PocketSmithClient:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         account_id: Optional[int] = None,
+        updated_since: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         user = self.get_user()
         user_id: int = user["id"]
@@ -107,6 +108,8 @@ class PocketSmithClient:
             params["end_date"] = end_date
         if account_id:
             params["account_id"] = account_id
+        if updated_since:
+            params["updated_since"] = updated_since
 
         all_transactions = []
         url: Optional[str] = f"{self.base_url}/users/{user_id}/transactions"

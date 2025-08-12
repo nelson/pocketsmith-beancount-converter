@@ -16,7 +16,10 @@ This project provides a comprehensive way to:
 ## Features
 
 ### 🔄 Data Synchronization
+- **Modern CLI**: Phase 9 introduces `clone` and `pull` commands with intelligent sync capabilities
 - **Complete data sync**: Fetches all transactions, accounts, categories, and balances
+- **Incremental updates**: `pull` command uses `updated_since` parameter for efficient syncing
+- **Change detection**: Automatic detection of new and modified transactions with detailed logging
 - **Bidirectional synchronization**: Keep PocketSmith and beancount data in sync with intelligent conflict resolution
 - **Field-specific resolution**: Different sync strategies for different data types (amounts, notes, categories, tags)
 - **Write-back support**: Update PocketSmith via REST API when local changes are detected
@@ -35,13 +38,15 @@ This project provides a comprehensive way to:
 - **Hierarchical file structure**: Organize transactions by year/month with top-level declarations
 - **Rich metadata**: Includes PocketSmith IDs, labels as tags, and review flags
 - **Enhanced metadata**: Last modified timestamps, closing balances, and decimal ID format
-- **Transaction changelog**: Track changes with compact AEST timestamped logs
+- **Transaction changelog**: Comprehensive change tracking with timestamped logs for CLONE, PULL, and OVERWRITE operations
+- **Flexible output**: Support for both single-file and hierarchical output structures
 
 ### 🛠️ Development & Validation
-- **CLI interface**: Command-based interface with sync, apply, and add-rule commands
+- **Modern CLI interface**: Phase 9 introduces `clone` and `pull` commands with comprehensive options and quiet mode
+- **Legacy CLI support**: Backward compatible sync, apply, and add-rule commands
 - **Validation**: Integrated bean-check validation for output files
-- **Incremental updates**: Support for archive-based updates with change detection
-- **Comprehensive testing**: 341+ tests including property-based and integration testing
+- **Dry-run support**: Preview changes before applying them with `--dry-run` option
+- **Comprehensive testing**: 450+ tests including property-based and integration testing
 
 ## Setup
 
@@ -60,22 +65,16 @@ This project provides a comprehensive way to:
 
 The tool uses a **command-based interface** for better organization of functionality. Phase 9 introduces an improved CLI with the new `clone` command powered by typer.
 
-### Clone Command (Phase 9 - New!)
+### Clone Command (Phase 9)
 
-The new `clone` command provides a modern, flexible interface for downloading PocketSmith data:
+The `clone` command provides a modern, flexible interface for downloading PocketSmith data and creating a new ledger with changelog:
 
 ```bash
-# Download last 30 transactions to hierarchical structure (default)
+# Download to hierarchical structure (default: output/ with main.beancount and main.log)
 uv run python main.py clone output/
 
-# Download to single file
-uv run python main.py clone -1 transactions.beancount
-
-# Download specific number of transactions
-uv run python main.py clone -n 100 output/
-
-# Download all transactions
-uv run python main.py clone --all output/
+# Download to single file with changelog
+uv run python main.py clone -1 transactions.beancount  # Creates transactions.log
 
 # Download with date range
 uv run python main.py clone --from 2024-01-01 --to 2024-12-31 output/
@@ -83,8 +82,32 @@ uv run python main.py clone --from 2024-01-01 --to 2024-12-31 output/
 # Download current month
 uv run python main.py clone --this-month output/
 
-# Download last year
+# Download last year  
 uv run python main.py clone --last-year output/
+
+# Quiet mode (suppress informational output)
+uv run python main.py clone --quiet output/
+```
+
+### Pull Command (Phase 9)
+
+The `pull` command updates an existing ledger with recent PocketSmith data, using intelligent sync and change tracking:
+
+```bash
+# Update ledger with recent changes
+uv run python main.py pull output/
+
+# Update with dry-run (preview changes)
+uv run python main.py pull --dry-run output/
+
+# Pull specific date range (expands sync scope)
+uv run python main.py pull --from 2024-02-01 --to 2024-02-29 output/
+
+# Pull current month
+uv run python main.py pull --this-month output/
+
+# Quiet mode
+uv run python main.py pull --quiet output/
 ```
 
 ### Data Synchronization (Legacy)
