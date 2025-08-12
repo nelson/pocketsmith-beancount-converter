@@ -58,9 +58,36 @@ This project provides a comprehensive way to:
 
 ## Usage
 
-The tool now uses a **command-based interface** for better organization of functionality.
+The tool uses a **command-based interface** for better organization of functionality. Phase 9 introduces an improved CLI with the new `clone` command powered by typer.
 
-### Data Synchronization
+### Clone Command (Phase 9 - New!)
+
+The new `clone` command provides a modern, flexible interface for downloading PocketSmith data:
+
+```bash
+# Download last 30 transactions to hierarchical structure (default)
+uv run python main.py clone output/
+
+# Download to single file
+uv run python main.py clone -1 transactions.beancount
+
+# Download specific number of transactions
+uv run python main.py clone -n 100 output/
+
+# Download all transactions
+uv run python main.py clone --all output/
+
+# Download with date range
+uv run python main.py clone --from 2024-01-01 --to 2024-12-31 output/
+
+# Download current month
+uv run python main.py clone --this-month output/
+
+# Download last year
+uv run python main.py clone --last-year output/
+```
+
+### Data Synchronization (Legacy)
 
 ```bash
 # Download and convert transactions (single file)

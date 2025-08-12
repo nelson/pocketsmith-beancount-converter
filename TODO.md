@@ -363,36 +363,76 @@ uv run bean-check output/main.beancount   # Validate beancount files
   - [x] `regex>=2023.0.0` - Advanced regex features beyond Python's re module ✅ COMPLETED
   - [x] `colorama>=0.4.6` - Colored terminal output for warnings and errors ✅ COMPLETED
 
-## 🔄 Phase 9: Production Readiness & Polish (NEXT PHASE)
+## ✅ Phase 9: Improve CLI (IN PROGRESS)
+
+### 🎯 CLI Framework Migration
+- [ ] **Add typer dependency to pyproject.toml** - Replace argparse with modern typer framework
+- [ ] **Create src/cli/ directory structure** - Modular CLI organization with individual command files
+- [ ] **Design main CLI app structure in main.py** - Primary entry point using typer
+- [ ] **Update existing CLI entry points** - Migrate sync/apply/add-rule commands to typer structure
+
+### 🔄 Clone Command Implementation
+- [ ] **Implement clone command with all options and flags** - Core new functionality with comprehensive options
+- [ ] **Implement date parsing and validation logic** - Handle YYYY-MM-DD, YYYYMMDD, partial dates, and relative dates
+- [ ] **Implement file/directory output logic** - Single file vs hierarchical structure, path validation
+- [ ] **Add input validation and error handling** - Mutual exclusion of conflicting options
+
+### 🧪 CLI Testing Strategy
+- [ ] **Create tests/cli/ directory structure** - New test organization for CLI components
+- [ ] **Write comprehensive CLI tests for clone command** - Mock-based testing of all options and edge cases
+- [ ] **Add property-based CLI tests** - Generate random option combinations for robustness
+- [ ] **Test CLI integration with existing functionality** - Ensure backward compatibility
+
+### 📚 Documentation Updates
+- [ ] **Update README with new CLI interface** - Document clone command and new structure
+- [ ] **Update TESTING.md with CLI test strategy** - CLI-specific testing approaches
+- [ ] **Create CLI usage examples** - Real-world usage patterns and examples
+
+### Clone Command Specification
+
+```bash
+peabody clone [-1 | --single-file] [-n | --limit <num> | --all] [--from <date>] [--to <date>] [--this-month] [--last-month] [--this-year] [--last-year] <file_or_directory>
+```
+
+**Key Features:**
+- **Output Formats**: Hierarchical (default) vs single file (`-1`)
+- **Transaction Limits**: Default 30, custom (`-n`), or all (`--all`)
+- **Date Ranges**: Flexible date parsing with convenience options
+- **Validation**: Mutual exclusion of conflicting options
+- **Error Handling**: Clear, actionable error messages
+
+**Target: Modern, user-friendly CLI with comprehensive options and excellent UX**
+
+## 🔄 Phase 10: Production Readiness & Polish (FUTURE)
 
 ### 🐛 Known Issues to Address
-- [ ] **Fix remaining test failures** - Address any failing tests from Phase 8 implementation
-- [ ] **Address type checking issues** - Fix mypy errors for new rule system components
+- [ ] **Fix remaining test failures** - Address any failing tests from Phase 9 implementation
+- [ ] **Address type checking issues** - Fix mypy errors for new CLI system components
 - [ ] **Add beancount file reading** - Currently using empty local transactions for sync comparison
 - [ ] **Improve error handling** - More graceful handling of API timeouts and network issues
 
 ### 🚀 Performance & Optimization
-- [ ] **Performance testing with real data** - Test rules with large PocketSmith datasets (1000+ transactions)
-- [ ] **Memory optimization** - Optimize memory usage for large rule sets and datasets
-- [ ] **Batch operation tuning** - Fine-tune batch sizes for optimal API performance with rules
-- [ ] **Caching strategies** - Implement intelligent caching for rule compilation and category resolution
+- [ ] **Performance testing with real data** - Test CLI with large PocketSmith datasets (1000+ transactions)
+- [ ] **Memory optimization** - Optimize memory usage for large datasets and CLI operations
+- [ ] **CLI startup optimization** - Minimize CLI startup time and responsiveness
+- [ ] **Caching strategies** - Implement intelligent caching for CLI operations
 
 ### 📚 Documentation & Examples
-- [ ] **Create rule examples** - Real-world rule examples with sample data
-- [ ] **User guides** - Step-by-step guides for creating and managing rules
-- [ ] **Troubleshooting guide** - Common rule issues and solutions
-- [ ] **API reference documentation** - Complete documentation for all rule modules
+- [ ] **Create comprehensive CLI examples** - Real-world CLI usage patterns with sample data
+- [ ] **User guides** - Step-by-step guides for all CLI commands and workflows
+- [ ] **Troubleshooting guide** - Common CLI issues and solutions
+- [ ] **API reference documentation** - Complete documentation for all CLI modules
 
 ### 🔒 Security & Reliability
-- [ ] **Rule validation security** - Prevent regex DoS and injection attacks
-- [ ] **Data backup before rules** - Automatic backup of transactions before rule application
-- [ ] **Rule conflict resolution UI** - Interactive resolution for complex rule conflicts
-- [ ] **Audit logging** - Comprehensive logging of all rule applications for debugging
+- [ ] **CLI input validation security** - Prevent injection attacks and malicious input
+- [ ] **Data backup before operations** - Automatic backup before destructive operations
+- [ ] **CLI error recovery** - Graceful recovery from CLI errors and interruptions
+- [ ] **Audit logging** - Comprehensive logging of all CLI operations for debugging
 
 ### 🧪 Advanced Testing
-- [ ] **End-to-end rule testing** - Full workflow testing with real PocketSmith API and rules
-- [ ] **Load testing** - Test system behavior with large rule sets and transaction volumes
-- [ ] **Chaos engineering** - Test resilience to network failures and malformed rule files
-- [ ] **User acceptance testing** - Validate rule workflows and user experience
+- [ ] **End-to-end CLI testing** - Full workflow testing with real PocketSmith API
+- [ ] **Load testing** - Test CLI behavior with large datasets and complex operations
+- [ ] **Cross-platform testing** - Test CLI on different operating systems
+- [ ] **User acceptance testing** - Validate CLI workflows and user experience
 
-**Target: Production-ready rule processing system with comprehensive documentation and testing**
+**Target: Production-ready CLI system with comprehensive documentation and testing**
