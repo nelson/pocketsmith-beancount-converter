@@ -3,7 +3,7 @@
 import re
 from typing import Any, Dict, List, Match, Optional, Pattern, Tuple
 
-from .rule_models import TransactionRule
+from .models import TransactionRule
 
 
 class RuleMatcher:
@@ -49,6 +49,15 @@ class RuleMatcher:
                 except re.error:
                     continue
 
+            if rule.precondition.metadata:
+                for meta_key, meta_pattern in rule.precondition.metadata.items():
+                    try:
+                        rule_patterns[f"metadata.{meta_key}"] = re.compile(
+                            meta_pattern, re.IGNORECASE
+                        )
+                    except re.error:
+                        continue
+
             if rule_patterns:
                 self._compiled_patterns[rule.id] = rule_patterns
 
@@ -84,7 +93,7 @@ class RuleMatcher:
             transaction: Transaction data from PocketSmith API
 
         Returns:
-            Dictionary with account, category, and merchant fields
+            Dictionary with account, category, merchant, and metadata fields
         """
         fields = {"account": "", "category": "", "merchant": ""}
 
@@ -120,7 +129,42 @@ class RuleMatcher:
         if payee and isinstance(payee, str):
             fields["merchant"] = payee
 
+        # Extract metadata from transaction notes
+        notes = transaction.get("notes", "")
+        if notes and isinstance(notes, str):
+            metadata = self._parse_metadata_from_notes(notes)
+            for key, value in metadata.items():
+                fields[f"metadata.{key}"] = value
+
         return fields
+
+    def _parse_metadata_from_notes(self, notes: str) -> Dict[str, str]:
+        """Parse metadata from PocketSmith transaction notes.
+
+        Expected format: "key: value, key2: value2"
+
+        Args:
+            notes: Transaction notes string
+
+        Returns:
+            Dictionary of metadata key-value pairs
+        """
+        metadata: Dict[str, str] = {}
+        if not notes or not isinstance(notes, str):
+            return metadata
+
+        # Split by comma and parse key-value pairs
+        pairs = notes.split(",")
+        for pair in pairs:
+            pair = pair.strip()
+            if ":" in pair:
+                key, value = pair.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+                if key and value:
+                    metadata[key] = value
+
+        return metadata
 
     def _match_rule(
         self, rule: TransactionRule, transaction_fields: Dict[str, str]

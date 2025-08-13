@@ -6,7 +6,7 @@ from typing import Any, List, Set, Union
 
 import yaml
 
-from .rule_models import (
+from .models import (
     RuleLoadResult,
     RulePrecondition,
     RuleTransform,
@@ -183,6 +183,11 @@ class RuleLoader:
 
         rule_id = rule_id_raw
 
+        # Check if rule is disabled
+        if rule_data.get("disabled", False):
+            # Skip disabled rules - they are not loaded but don't cause errors
+            return
+
         # Check for duplicate rule IDs
         if rule_id in self._loaded_rule_ids:
             result.add_error(
@@ -252,6 +257,7 @@ class RuleLoader:
         account = None
         category = None
         merchant = None
+        metadata = None
 
         for condition in if_data:
             if not isinstance(condition, dict):
@@ -264,47 +270,87 @@ class RuleLoader:
                 )
 
             for key, value in condition.items():
-                if key not in ["account", "category", "merchant"]:
+                if key not in ["account", "category", "merchant", "metadata"]:
                     return RuleValidationError(
                         rule_id=rule_id,
                         field_name="if_condition",
-                        error_message=f"Unknown condition key: {key}. Must be one of: account, category, merchant",
+                        error_message=f"Unknown condition key: {key}. Must be one of: account, category, merchant, metadata",
                         file_path=file_path,
                         line_number=line_number,
                     )
 
-                if not isinstance(value, str):
-                    return RuleValidationError(
-                        rule_id=rule_id,
-                        field_name=key,
-                        error_message=f"Condition value must be a string, got: {type(value).__name__}",
-                        file_path=file_path,
-                        line_number=line_number,
-                    )
+                if key == "metadata":
+                    if not isinstance(value, dict):
+                        return RuleValidationError(
+                            rule_id=rule_id,
+                            field_name=key,
+                            error_message=f"Metadata condition must be a dictionary, got: {type(value).__name__}",
+                            file_path=file_path,
+                            line_number=line_number,
+                        )
+                    # Validate metadata keys and patterns
+                    for meta_key, meta_pattern in value.items():
+                        if not isinstance(meta_key, str):
+                            return RuleValidationError(
+                                rule_id=rule_id,
+                                field_name=f"metadata.{meta_key}",
+                                error_message=f"Metadata key must be a string, got: {type(meta_key).__name__}",
+                                file_path=file_path,
+                                line_number=line_number,
+                            )
+                        if not isinstance(meta_pattern, str):
+                            return RuleValidationError(
+                                rule_id=rule_id,
+                                field_name=f"metadata.{meta_key}",
+                                error_message=f"Metadata pattern must be a string, got: {type(meta_pattern).__name__}",
+                                file_path=file_path,
+                                line_number=line_number,
+                            )
+                        # Test regex compilation
+                        try:
+                            re.compile(meta_pattern, re.IGNORECASE)
+                        except re.error as e:
+                            return RuleValidationError(
+                                rule_id=rule_id,
+                                field_name=f"metadata.{meta_key}",
+                                error_message=f"Invalid regex pattern: {e}",
+                                file_path=file_path,
+                                line_number=line_number,
+                            )
+                    metadata = value
+                else:
+                    if not isinstance(value, str):
+                        return RuleValidationError(
+                            rule_id=rule_id,
+                            field_name=key,
+                            error_message=f"Condition value must be a string, got: {type(value).__name__}",
+                            file_path=file_path,
+                            line_number=line_number,
+                        )
 
-                # Test regex compilation
-                try:
-                    re.compile(value, re.IGNORECASE)
-                except re.error as e:
-                    return RuleValidationError(
-                        rule_id=rule_id,
-                        field_name=key,
-                        error_message=f"Invalid regex pattern: {e}",
-                        file_path=file_path,
-                        line_number=line_number,
-                    )
+                    # Test regex compilation
+                    try:
+                        re.compile(value, re.IGNORECASE)
+                    except re.error as e:
+                        return RuleValidationError(
+                            rule_id=rule_id,
+                            field_name=key,
+                            error_message=f"Invalid regex pattern: {e}",
+                            file_path=file_path,
+                            line_number=line_number,
+                        )
 
-                # Assign to precondition fields
-                if key == "account":
-                    account = value
-                elif key == "category":
-                    category = value
-                elif key == "merchant":
-                    merchant = value
+                    # Assign to precondition fields
+                    if key == "account":
+                        account = value
+                    elif key == "category":
+                        category = value
+                    elif key == "merchant":
+                        merchant = value
 
         try:
             return RulePrecondition(
-                account=account, category=category, merchant=merchant
+                account=account, category=category, merchant=merchant, metadata=metadata
             )
         except ValueError as e:
             return RuleValidationError(

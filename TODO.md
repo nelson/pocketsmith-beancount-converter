@@ -433,6 +433,67 @@ peabody [--format {summary, ids, changelog, diff}] diff [--from <date>] [--to <d
 
 **✅ Phase 9 ACHIEVED: Modern, user-friendly CLI with comprehensive options and excellent UX**
 
+## ✅ Phase 9.5: CLI Enhancements & Rule System Improvements (COMPLETED)
+
+### ✅ CLI Addendum (COMPLETED)
+- [x] **Hide convenience date options from help text** - Reduced visual clutter in CLI help while maintaining functionality ✅ COMPLETED
+- [x] **Refactor duplicate code across commands** - Created shared DateOptions class and common utilities ✅ COMPLETED 
+- [x] **Add help command** - Dedicated help command listing all subcommands with descriptions ✅ COMPLETED
+- [x] **Add --id option to pull, push, and diff commands** - Target operations on specific transactions ✅ COMPLETED
+
+### ✅ Rule System Enhancements (COMPLETED)
+- [x] **Implement metadata fields support in rule preconditions** - Rules can now match against transaction metadata ✅ COMPLETED
+- [x] **Change MATCH keyword to APPLY in rule logs** - Consistent logging terminology for rule applications ✅ COMPLETED
+- [x] **Implement rule add command** - CLI-based rule creation with precondition and transform parsing ✅ COMPLETED
+- [x] **Implement rule rm command** - Rule removal using disabled flag to preserve audit trail ✅ COMPLETED
+- [x] **Implement rule apply command** - Apply specific rules to specific transactions with dry-run support ✅ COMPLETED
+
+### ✅ Technical Implementation (COMPLETED)
+- [x] **Create shared CLI utilities** (`src/cli/common.py`) - Centralized destination handling and option creation ✅ COMPLETED
+- [x] **Create DateOptions class** (`src/cli/date_options.py`) - Eliminate duplicate date parameter handling ✅ COMPLETED
+- [x] **Create rule command handlers** (`src/cli/rule_commands.py`) - Comprehensive rule management CLI ✅ COMPLETED
+- [x] **Enhance rule models** - Add metadata support to RulePrecondition class ✅ COMPLETED
+- [x] **Enhance rule loader** - Parse and validate metadata preconditions, support disabled rules ✅ COMPLETED
+- [x] **Enhance rule matcher** - Metadata field extraction and matching logic ✅ COMPLETED
+- [x] **Add get_transaction method** - Single transaction retrieval from PocketSmith API ✅ COMPLETED
+
+### ✅ Rule Command Examples (COMPLETED)
+```bash
+# Add new rule with metadata matching
+peabody rule add --if merchant=starbucks --if needs_reimburse=true --then category=Dining --then labels=coffee
+
+# Remove rule (mark as disabled)
+peabody rule rm 68
+
+# Apply specific rule to specific transaction with preview
+peabody rule apply 68 123456 --dry-run
+
+# List all available commands
+peabody help
+```
+
+### ✅ Enhanced Rule Format (COMPLETED)
+```yaml
+# Rules now support metadata preconditions
+- id: 68
+  if:
+   - metadata:
+      - needs_reimburse: "true"
+      - reimbursed_by: ".*"
+  then:
+    - labels: reimbursed
+
+# Disabled rules are skipped during loading
+- id: 69
+  disabled: true
+  if:
+   - merchant: "old-pattern"
+  then:
+   - category: "Old Category"
+```
+
+**✅ Phase 9.5 ACHIEVED: Enhanced CLI user experience and advanced rule system capabilities**
+
 ## 🔄 Phase 10: Production Readiness & Polish (FUTURE)
 
 ### 🐛 Known Issues to Address

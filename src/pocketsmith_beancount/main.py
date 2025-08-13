@@ -12,7 +12,7 @@ from .file_writer import BeancountFileWriter
 from .synchronizer import PocketSmithSynchronizer
 from .api_writer import PocketSmithAPIWriter
 from .changelog import TransactionChangelog
-from .rule_cli import RuleCLI
+from ..rules.cli import RuleCLI
 
 
 def create_parser() -> argparse.ArgumentParser:

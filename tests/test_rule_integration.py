@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
-from src.pocketsmith_beancount.rule_loader import RuleLoader
-from src.pocketsmith_beancount.rule_matcher import RuleMatcher
-from src.pocketsmith_beancount.rule_transformer import RuleTransformer
+from src.rules.loader import RuleLoader
+from src.rules.matcher import RuleMatcher
+from src.rules.transformer import RuleTransformer
 
 
 class TestRuleIntegration:

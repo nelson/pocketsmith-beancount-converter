@@ -2,12 +2,13 @@
 
 import typer
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from src.cli.clone import clone_command
 from src.cli.pull import pull_command
 from src.cli.diff import diff_command
-from src.cli.file_handler import find_default_beancount_file, FileHandlerError
+from src.cli.common import handle_default_destination, transaction_id_option
+from src.cli.date_options import DateOptions
 
 # Create the main typer app
 app = typer.Typer(
@@ -15,6 +16,23 @@ app = typer.Typer(
     help="PocketSmith to Beancount converter with intelligent rules and synchronization",
     no_args_is_help=True,
 )
+
+
+@app.command()
+def help() -> None:
+    """List all available subcommands."""
+    typer.echo("Available commands:")
+    typer.echo("")
+    typer.echo(
+        "  clone   Download PocketSmith transactions and write them to beancount format"
+    )
+    typer.echo("  pull    Update local Beancount ledger with recent PocketSmith data")
+    typer.echo("  diff    Compare local beancount ledger with remote PocketSmith data")
+    typer.echo("  push    Upload local changes to PocketSmith (coming soon)")
+    typer.echo("  rule    Manage transaction processing rules")
+    typer.echo("  help    Show this help message")
+    typer.echo("")
+    typer.echo("Use 'peabody COMMAND --help' for detailed help on any command.")
 
 
 @app.command()
@@ -29,26 +47,44 @@ def clone(
         "--single-file",
         help="Write all data to a single file instead of hierarchical structure",
     ),
-    from_date: Optional[str] = typer.Option(
-        None, "--from", help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)"
-    ),
-    to_date: Optional[str] = typer.Option(
-        None, "--to", help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)"
-    ),
-    this_month: bool = typer.Option(
-        False, "--this-month", help="Download transactions from current calendar month"
-    ),
-    last_month: bool = typer.Option(
-        False, "--last-month", help="Download transactions from previous calendar month"
-    ),
-    this_year: bool = typer.Option(
-        False, "--this-year", help="Download transactions from current calendar year"
-    ),
-    last_year: bool = typer.Option(
-        False, "--last-year", help="Download transactions from previous calendar year"
-    ),
     quiet: bool = typer.Option(
         False, "-q", "--quiet", help="Suppress informational output"
+    ),
+    from_date: Optional[str] = typer.Option(
+        None,
+        "--from",
+        help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
+    ),
+    to_date: Optional[str] = typer.Option(
+        None,
+        "--to",
+        help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
+    ),
+    this_month: bool = typer.Option(
+        False,
+        "--this-month",
+        help="Download transactions from current calendar month",
+        hidden=True,
+    ),
+    last_month: bool = typer.Option(
+        False,
+        "--last-month",
+        help="Download transactions from previous calendar month",
+        hidden=True,
+    ),
+    this_year: bool = typer.Option(
+        False,
+        "--this-year",
+        help="Download transactions from current calendar year",
+        hidden=True,
+    ),
+    last_year: bool = typer.Option(
+        False,
+        "--last-year",
+        help="Download transactions from previous calendar year",
+        hidden=True,
     ),
 ) -> None:
     """Download PocketSmith transactions and write them to beancount format.
@@ -61,23 +97,21 @@ def clone(
     If no destination is provided, attempts to find a default beancount file
     in the current directory.
     """
-    # Handle default destination
-    if destination is None:
-        try:
-            destination = find_default_beancount_file()
-        except FileHandlerError as e:
-            typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(1)
+    destination = handle_default_destination(destination)
 
-    clone_command(
-        destination=destination,
-        single_file=single_file,
+    date_options = DateOptions(
         from_date=from_date,
         to_date=to_date,
         this_month=this_month,
         last_month=last_month,
         this_year=this_year,
         last_year=last_year,
+    )
+
+    clone_command(
+        destination=destination,
+        single_file=single_file,
+        date_options=date_options,
         quiet=quiet,
     )
 
@@ -97,23 +131,42 @@ def pull(
     quiet: bool = typer.Option(
         False, "-q", "--quiet", help="Suppress informational output"
     ),
+    transaction_id: Optional[str] = transaction_id_option(),
     from_date: Optional[str] = typer.Option(
-        None, "--from", help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)"
+        None,
+        "--from",
+        help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
     ),
     to_date: Optional[str] = typer.Option(
-        None, "--to", help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)"
+        None,
+        "--to",
+        help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
     ),
     this_month: bool = typer.Option(
-        False, "--this-month", help="Pull transactions from current calendar month"
+        False,
+        "--this-month",
+        help="Pull transactions from current calendar month",
+        hidden=True,
     ),
     last_month: bool = typer.Option(
-        False, "--last-month", help="Pull transactions from previous calendar month"
+        False,
+        "--last-month",
+        help="Pull transactions from previous calendar month",
+        hidden=True,
     ),
     this_year: bool = typer.Option(
-        False, "--this-year", help="Pull transactions from current calendar year"
+        False,
+        "--this-year",
+        help="Pull transactions from current calendar year",
+        hidden=True,
     ),
     last_year: bool = typer.Option(
-        False, "--last-year", help="Pull transactions from previous calendar year"
+        False,
+        "--last-year",
+        help="Pull transactions from previous calendar year",
+        hidden=True,
     ),
 ) -> None:
     """Update local Beancount ledger with recent PocketSmith data.
@@ -130,25 +183,24 @@ def pull(
     If no destination is provided, attempts to find a default beancount file
     in the current directory.
     """
-    # Handle default destination
-    if destination is None:
-        try:
-            destination = find_default_beancount_file()
-        except FileHandlerError as e:
-            typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(1)
+    destination = handle_default_destination(destination)
 
-    pull_command(
-        destination=destination,
-        verbose=verbose,
+    date_options = DateOptions(
         from_date=from_date,
         to_date=to_date,
         this_month=this_month,
         last_month=last_month,
         this_year=this_year,
         last_year=last_year,
+    )
+
+    pull_command(
+        destination=destination,
+        verbose=verbose,
+        date_options=date_options,
         dry_run=dry_run,
         quiet=quiet,
+        transaction_id=transaction_id,
     )
 
 
@@ -163,23 +215,42 @@ def diff(
         "--format",
         help="Output format: summary, ids, changelog, or diff",
     ),
+    transaction_id: Optional[str] = transaction_id_option(),
     from_date: Optional[str] = typer.Option(
-        None, "--from", help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)"
+        None,
+        "--from",
+        help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
     ),
     to_date: Optional[str] = typer.Option(
-        None, "--to", help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)"
+        None,
+        "--to",
+        help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
     ),
     this_month: bool = typer.Option(
-        False, "--this-month", help="Compare transactions from current calendar month"
+        False,
+        "--this-month",
+        help="Compare transactions from current calendar month",
+        hidden=True,
     ),
     last_month: bool = typer.Option(
-        False, "--last-month", help="Compare transactions from previous calendar month"
+        False,
+        "--last-month",
+        help="Compare transactions from previous calendar month",
+        hidden=True,
     ),
     this_year: bool = typer.Option(
-        False, "--this-year", help="Compare transactions from current calendar year"
+        False,
+        "--this-year",
+        help="Compare transactions from current calendar year",
+        hidden=True,
     ),
     last_year: bool = typer.Option(
-        False, "--last-year", help="Compare transactions from previous calendar year"
+        False,
+        "--last-year",
+        help="Compare transactions from previous calendar year",
+        hidden=True,
     ),
 ) -> None:
     """Compare local beancount ledger with remote PocketSmith data.
@@ -193,17 +264,9 @@ def diff(
     If no destination is provided, attempts to find a default beancount file
     in the current directory.
     """
-    # Handle default destination
-    if destination is None:
-        try:
-            destination = find_default_beancount_file()
-        except FileHandlerError as e:
-            typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(1)
+    destination = handle_default_destination(destination)
 
-    diff_command(
-        destination=destination,
-        format=format,
+    date_options = DateOptions(
         from_date=from_date,
         to_date=to_date,
         this_month=this_month,
@@ -211,6 +274,140 @@ def diff(
         this_year=this_year,
         last_year=last_year,
     )
+
+    diff_command(
+        destination=destination,
+        format=format,
+        date_options=date_options,
+        transaction_id=transaction_id,
+    )
+
+
+@app.command()
+def push(
+    destination: Optional[Path] = typer.Argument(
+        None,
+        help="File or directory to push (defaults to current directory's beancount file)",
+    ),
+    dry_run: bool = typer.Option(
+        False, "-n", "--dry-run", help="Preview changes without applying them"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Show detailed update information"
+    ),
+    quiet: bool = typer.Option(
+        False, "-q", "--quiet", help="Suppress informational output"
+    ),
+    transaction_id: Optional[str] = transaction_id_option(),
+    from_date: Optional[str] = typer.Option(
+        None,
+        "--from",
+        help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
+    ),
+    to_date: Optional[str] = typer.Option(
+        None,
+        "--to",
+        help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+        hidden=True,
+    ),
+    this_month: bool = typer.Option(
+        False,
+        "--this-month",
+        help="Push transactions from current calendar month",
+        hidden=True,
+    ),
+    last_month: bool = typer.Option(
+        False,
+        "--last-month",
+        help="Push transactions from previous calendar month",
+        hidden=True,
+    ),
+    this_year: bool = typer.Option(
+        False,
+        "--this-year",
+        help="Push transactions from current calendar year",
+        hidden=True,
+    ),
+    last_year: bool = typer.Option(
+        False,
+        "--last-year",
+        help="Push transactions from previous calendar year",
+        hidden=True,
+    ),
+) -> None:
+    """Upload local changes to PocketSmith."""
+    typer.echo("Push command is not yet implemented.")
+    typer.echo("Use 'peabody diff' to see what changes would be pushed.")
+    raise typer.Exit(1)
+
+
+# Create rule sub-app
+rule_app = typer.Typer(
+    name="rule",
+    help="Manage transaction processing rules",
+    no_args_is_help=True,
+)
+app.add_typer(rule_app, name="rule")
+
+
+@rule_app.callback(invoke_without_command=True)
+def rule_main(
+    ctx: typer.Context,
+    if_params: Optional[List[str]] = typer.Option(
+        None, "--if", help="Add precondition: key=value"
+    ),
+    then_params: Optional[List[str]] = typer.Option(
+        None, "--then", help="Add transform: key=value"
+    ),
+) -> None:
+    """Manage transaction processing rules."""
+    if ctx.invoked_subcommand is None:
+        # If no subcommand provided, show help
+        typer.echo(ctx.get_help())
+
+
+@rule_app.command("add")
+def rule_add(
+    if_params: List[str] = typer.Option(
+        ..., "--if", help="Precondition: key=value (e.g., --if merchant=starbucks)"
+    ),
+    then_params: List[str] = typer.Option(
+        ..., "--then", help="Transform: key=value (e.g., --then category=Dining)"
+    ),
+) -> None:
+    """Add a new transaction processing rule.
+
+    Example:
+    peabody rule add --if merchant=starbucks --then category=Dining --then labels=coffee
+    """
+    from src.cli.rule_commands import rule_add_command
+
+    rule_add_command(if_params, then_params)
+
+
+@rule_app.command("rm")
+def rule_remove(
+    rule_id: int = typer.Argument(..., help="Rule ID to remove"),
+) -> None:
+    """Remove a transaction processing rule."""
+    from src.cli.rule_commands import rule_remove_command
+
+    rule_remove_command(rule_id)
+
+
+@rule_app.command("apply")
+def rule_apply(
+    rule_id: int = typer.Argument(..., help="Rule ID to apply"),
+    transaction_id: str = typer.Argument(..., help="Transaction ID to apply rule to"),
+    dry_run: bool = typer.Option(
+        False, "-n", "--dry-run", help="Preview changes without applying them"
+    ),
+) -> None:
+    """Apply a specific rule to a specific transaction."""
+    from src.cli.rule_commands import rule_apply_command
+
+    rule_apply_command(rule_id, transaction_id, dry_run)
 
 
 def main() -> None:
