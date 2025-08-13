@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 import colorama
 from colorama import Fore, Style
 
-from .changelog import TransactionChangelog
-from .rule_loader import RuleLoader
-from .rule_matcher import RuleMatcher
-from .rule_models import RuleApplicationBatch, RuleTransform, TransactionRule
-from .rule_transformer import RuleTransformer
+from ..pocketsmith_beancount.changelog import TransactionChangelog
+from .loader import RuleLoader
+from .matcher import RuleMatcher
+from .models import RuleApplicationBatch, RuleTransform, TransactionRule
+from .transformer import RuleTransformer
 
 
 class RuleCLI:

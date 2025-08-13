@@ -17,6 +17,7 @@ from .date_parser import (
     DateParseError,
 )
 from .validators import validate_date_options, ValidationError
+from .date_options import DateOptions
 from .changelog import ChangelogManager, determine_changelog_path
 from .file_handler import find_default_beancount_file, FileHandlerError
 
@@ -220,13 +221,9 @@ def determine_single_file_mode(path: Path) -> bool:
 
 def diff_command(
     destination: Optional[Path] = None,
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    this_month: bool = False,
-    last_month: bool = False,
-    this_year: bool = False,
-    last_year: bool = False,
+    date_options: Optional[DateOptions] = None,
     format: str = "summary",
+    transaction_id: Optional[str] = None,
 ) -> None:
     """Compare local beancount ledger with remote PocketSmith data.
 
@@ -235,6 +232,17 @@ def diff_command(
     """
     # Load environment variables
     load_dotenv()
+
+    # Extract date options
+    if date_options is None:
+        date_options = DateOptions()
+
+    from_date = date_options.from_date
+    to_date = date_options.to_date
+    this_month = date_options.this_month
+    last_month = date_options.last_month
+    this_year = date_options.this_year
+    last_year = date_options.last_year
 
     try:
         # Validate date options

@@ -155,6 +155,13 @@ class PocketSmithClient:
         data = {"labels": labels}
         return self._make_put_request(f"transactions/{transaction_id}", data)
 
+    def get_transaction(self, transaction_id: int) -> Dict[str, Any]:
+        """Get a single transaction by ID."""
+        result = self._make_request(f"transactions/{transaction_id}")
+        if isinstance(result, dict):
+            return result
+        raise ValueError(f"Transaction {transaction_id} not found")
+
     def update_transaction(
         self, transaction_id: str, updates: Dict[str, Any]
     ) -> Dict[str, Any]:

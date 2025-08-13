@@ -4,7 +4,7 @@ import re
 from decimal import Decimal
 from typing import Any, Dict, List, Match, Optional, Union
 
-from .rule_models import RuleApplication, RuleApplicationStatus, RuleTransform
+from .models import RuleApplication, RuleApplicationStatus, RuleTransform
 
 
 class RuleTransformer:
@@ -100,7 +100,7 @@ class RuleTransformer:
         """Apply category transformation."""
         # Substitute regex groups if available
         if regex_matches:
-            from .rule_matcher import RuleMatcher
+            from .matcher import RuleMatcher
 
             matcher = RuleMatcher()
             category_name = matcher.substitute_groups_in_text(
@@ -170,7 +170,7 @@ class RuleTransformer:
         for label in labels:
             # Substitute regex groups if available
             if regex_matches:
-                from .rule_matcher import RuleMatcher
+                from .matcher import RuleMatcher
 
                 matcher = RuleMatcher()
                 label = matcher.substitute_groups_in_text(label, regex_matches)
@@ -227,7 +227,7 @@ class RuleTransformer:
         """Apply memo/narration transformation."""
         # Substitute regex groups if available
         if regex_matches:
-            from .rule_matcher import RuleMatcher
+            from .matcher import RuleMatcher
 
             matcher = RuleMatcher()
             memo = matcher.substitute_groups_in_text(memo, regex_matches)
@@ -273,7 +273,7 @@ class RuleTransformer:
             # Substitute regex groups in string values
             processed_value: str
             if isinstance(value, str) and regex_matches:
-                from .rule_matcher import RuleMatcher
+                from .matcher import RuleMatcher
 
                 matcher = RuleMatcher()
                 processed_value = matcher.substitute_groups_in_text(
@@ -419,7 +419,7 @@ class RuleTransformer:
                 if app.has_warning:
                     # Log overwrite warning
                     self.changelog.log_entry(
-                        f"MATCH {app.transaction_id} RULE {app.rule_id} OVERWRITE {app.field_name} {app.warning_message}"
+                        f"APPLY {app.transaction_id} RULE {app.rule_id} OVERWRITE {app.field_name} {app.warning_message}"
                     )
                 else:
                     # Log successful change
@@ -446,22 +446,22 @@ class RuleTransformer:
 
                         change_desc = " ".join(changes) if changes else "no changes"
                         self.changelog.log_entry(
-                            f"MATCH {app.transaction_id} RULE {app.rule_id} {app.field_name} {change_desc}"
+                            f"APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {change_desc}"
                         )
                     else:
                         self.changelog.log_entry(
-                            f"MATCH {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
+                            f"APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
                         )
 
             elif app.status == RuleApplicationStatus.INVALID:
                 # Log invalid transform
                 self.changelog.log_entry(
-                    f"MATCH {app.transaction_id} RULE {app.rule_id} INVALID {app.field_name} {app.new_value}"
+                    f"APPLY {app.transaction_id} RULE {app.rule_id} INVALID {app.field_name} {app.new_value}"
                 )
 
             elif app.status == RuleApplicationStatus.ERROR:
                 # Log error
                 error_msg = app.error_message or "Unknown error"
                 self.changelog.log_entry(
-                    f"MATCH {app.transaction_id} RULE {app.rule_id} ERROR {app.field_name} {error_msg}"
+                    f"APPLY {app.transaction_id} RULE {app.rule_id} ERROR {app.field_name} {error_msg}"
                 )

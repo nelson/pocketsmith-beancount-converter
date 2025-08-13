@@ -23,6 +23,7 @@ from .file_handler import (
 )
 from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
+from .date_options import DateOptions
 
 # Import existing functionality
 from ..pocketsmith_beancount.pocketsmith_client import PocketSmithClient
@@ -33,12 +34,7 @@ from ..pocketsmith_beancount.file_writer import BeancountFileWriter
 def clone_command(
     destination: Path,
     single_file: bool = False,
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    this_month: bool = False,
-    last_month: bool = False,
-    this_year: bool = False,
-    last_year: bool = False,
+    date_options: Optional[DateOptions] = None,
     quiet: bool = False,
 ) -> None:
     """Download PocketSmith transactions and write them to beancount format.
@@ -51,6 +47,17 @@ def clone_command(
     """
     # Load environment variables
     load_dotenv()
+
+    # Extract date options
+    if date_options is None:
+        date_options = DateOptions()
+
+    from_date = date_options.from_date
+    to_date = date_options.to_date
+    this_month = date_options.this_month
+    last_month = date_options.last_month
+    this_year = date_options.this_year
+    last_year = date_options.last_year
 
     try:
         # Validate date options

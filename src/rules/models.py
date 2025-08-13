@@ -26,17 +26,18 @@ class RulePrecondition:
     account: Optional[str] = None  # Match against Assets/Liabilities accounts
     category: Optional[str] = None  # Match against Income/Expenses categories
     merchant: Optional[str] = None  # Match against payee/merchant field
+    metadata: Optional[Dict[str, str]] = None  # Match against transaction metadata
 
     def __post_init__(self) -> None:
         """Validate preconditions after initialization."""
-        if not any([self.account, self.category, self.merchant]):
+        if not any([self.account, self.category, self.merchant, self.metadata]):
             raise ValueError(
-                "At least one precondition (account, category, merchant) must be specified"
+                "At least one precondition (account, category, merchant, metadata) must be specified"
             )
 
     def has_condition(self) -> bool:
         """Check if any conditions are specified."""
-        return any([self.account, self.category, self.merchant])
+        return any([self.account, self.category, self.merchant, self.metadata])
 
 
 @dataclass

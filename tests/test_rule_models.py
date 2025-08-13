@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.pocketsmith_beancount.rule_models import (
+from src.rules.models import (
     RuleApplicationStatus,
     RulePrecondition,
     RuleTransform,

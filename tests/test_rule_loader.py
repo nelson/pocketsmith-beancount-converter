@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from src.pocketsmith_beancount.rule_loader import RuleLoader
+from src.rules.loader import RuleLoader
 
 
 class TestRuleLoader:

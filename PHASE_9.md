@@ -482,19 +482,124 @@ def clone_command(
 - **Mitigation**: User testing with existing workflows
 - **Mitigation**: Gradual rollout with feedback collection
 
+## Phase 9.5: CLI Enhancements & Rule System Improvements ✅ COMPLETED
+
+### Overview
+
+Following the completion of Phase 9, additional enhancements were made to improve the CLI user experience and extend the rule system with metadata support and new rule management commands.
+
+### Implemented Features
+
+#### CLI Addendum ✅
+- ✅ **Hidden convenience date options**: All date convenience options (`--this-month`, `--last-month`, etc.) are now hidden from help text to reduce clutter
+- ✅ **Refactored duplicate code**: Created shared `DateOptions` class and common utilities to eliminate code duplication across commands
+- ✅ **Help command**: Added dedicated `help` command that lists all available subcommands with descriptions
+- ✅ **Transaction targeting**: Added `--id ID` option to `pull`, `push`, and `diff` commands for targeting specific transactions
+
+#### Rule System Enhancements ✅
+
+**Metadata Fields Support:**
+- ✅ Rule preconditions now support metadata fields as a submapping under the `if` mapping
+- ✅ Metadata matching uses regex patterns just like other precondition fields
+- ✅ Example: `metadata: { needs_reimburse: "true", reimbursed_by: ".*" }`
+
+**Enhanced Logging:**
+- ✅ Changed rule matching log keyword from `MATCH` to `APPLY` for consistency
+- ✅ All rule application logs now use the `APPLY` keyword
+
+**Rule Management Commands:**
+- ✅ `rule add` command with `--if` and `--then` options for creating rules from CLI
+- ✅ `rule rm` command that disables rules by adding `disabled: true` flag
+- ✅ `rule apply` command with `--dry-run` option for testing specific rule on specific transaction
+- ✅ Automatic rule ID assignment and `.rules` file management
+
+### Technical Implementation
+
+#### CLI Architecture Improvements
+```python
+# Shared date options class
+class DateOptions:
+    def __init__(self, from_date=None, to_date=None, this_month=False, ...):
+        # Centralized date option handling
+
+# Common utilities
+def handle_default_destination(destination):
+    # Shared destination handling logic
+
+def transaction_id_option():
+    # Reusable --id option
+```
+
+#### Rule System Extensions
+```yaml
+# Enhanced rule format with metadata support
+- id: 68
+  if:
+   - metadata:
+      - needs_reimburse: true
+      - reimbursed_by: ".*"
+  then:
+    - labels: reimbursed
+```
+
+#### Rule Management CLI
+```bash
+# Add new rules from command line
+peabody rule add --if merchant=starbucks --then category=Dining --then labels=coffee
+
+# Remove rules (mark as disabled)
+peabody rule rm 68
+
+# Apply specific rule to specific transaction
+peabody rule apply 68 123456 --dry-run
+```
+
+### Key Benefits
+
+1. **Cleaner CLI Help**: Hidden date options reduce visual clutter while maintaining functionality
+2. **Reduced Code Duplication**: Shared utilities eliminate maintenance burden
+3. **Enhanced Rule Matching**: Metadata support enables more sophisticated transaction categorization
+4. **Command-line Rule Management**: No need to manually edit YAML files
+5. **Targeted Operations**: `--id` option allows precise transaction operations
+6. **Non-destructive Rule Removal**: Disabled rules preserve audit trail
+
+### Updated File Structure
+
+```
+src/cli/
+├── common.py              # Shared CLI utilities
+├── date_options.py        # Centralized date option handling
+├── rule_commands.py       # Rule management commands
+├── clone.py              # Enhanced with shared utilities
+├── pull.py               # Enhanced with --id option
+└── diff.py               # Enhanced with --id option
+
+src/pocketsmith_beancount/
+├── rule_models.py        # Enhanced with metadata support
+├── rule_loader.py        # Enhanced with disabled rule support
+├── rule_matcher.py       # Enhanced with metadata matching
+├── rule_transformer.py   # Enhanced with APPLY logging
+└── pocketsmith_client.py # Enhanced with get_transaction method
+```
+
 ## Future Enhancements
 
-### Phase 9.1: Enhanced Features
+### Phase 9.6: Advanced Rule Features
+- Rule inheritance and composition
+- Conditional rule application
+- Rule testing and validation tools
+
+### Phase 9.7: Enhanced CLI Features
 - Shell completion support
 - Configuration file support
 - Interactive mode for complex operations
 
-### Phase 9.2: Advanced CLI Features
+### Phase 9.8: Advanced CLI Features
 - Progress bars for long operations
 - Colored output and better formatting
 - Plugin system for custom commands
 
-### Phase 9.3: Integration Improvements
+### Phase 9.9: Integration Improvements
 - Better integration with existing sync/rules system
 - Unified configuration management
 - Enhanced logging and debugging options
