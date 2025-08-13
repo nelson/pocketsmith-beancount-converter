@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 import colorama
 from colorama import Fore, Style
 
-from ..pocketsmith_beancount.changelog import TransactionChangelog
+from ..changelog import TransactionChangelog
 from .loader import RuleLoader
 from .matcher import RuleMatcher
 from .models import RuleApplicationBatch, RuleTransform, TransactionRule

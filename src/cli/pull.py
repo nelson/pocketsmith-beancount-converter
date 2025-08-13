@@ -19,10 +19,9 @@ from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
 from .date_options import DateOptions
 
-# Import existing functionality
-from ..pocketsmith_beancount.pocketsmith_client import PocketSmithClient
-from ..pocketsmith_beancount.beancount_converter import BeancountConverter
-from ..pocketsmith_beancount.file_writer import BeancountFileWriter
+# Import refactored functionality
+from ..pocketsmith.common import PocketSmithClient
+from ..beancount.write import write_hierarchical_ledger
 
 
 class TransactionComparator:
@@ -333,27 +332,37 @@ def pull_command(
             except Exception:
                 account_balances = {}
 
-            # Convert and write transactions
-            converter = BeancountConverter()
-
+            # Write transactions using refactored functionality
             if single_file:
-                # For single file, we need to merge with existing content
-                # This is simplified - in reality we'd need to parse and merge
-                beancount_content = converter.convert_transactions(
-                    all_transactions, transaction_accounts, categories, account_balances
+                # For single file, use the new write functionality
+                from ..beancount.write import (
+                    generate_transactions_content,
+                    generate_main_file_content,
                 )
 
-                with open(destination, "w", encoding="utf-8") as f:
-                    f.write(beancount_content)
-            else:
-                # For hierarchical structure
-                writer = BeancountFileWriter(str(destination))
-                writer.write_hierarchical_beancount_files(
-                    all_transactions,
+                # Generate all transactions in one file
+                content = generate_main_file_content(
+                    [],  # No year_months for single file
                     transaction_accounts,
                     categories,
                     account_balances,
-                    converter,
+                )
+
+                # Add transactions
+                transaction_content = generate_transactions_content(all_transactions)
+                if transaction_content:
+                    content += "\n\n" + transaction_content
+
+                with open(destination, "w", encoding="utf-8") as f:
+                    f.write(content)
+            else:
+                # For hierarchical structure, use the new write function
+                write_hierarchical_ledger(
+                    all_transactions,
+                    transaction_accounts,
+                    categories,
+                    str(destination),
+                    account_balances,
                 )
 
             # Write changelog entries

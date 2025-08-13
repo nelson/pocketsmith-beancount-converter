@@ -17,3 +17,6 @@ output/
 
 # Hypothesis cache
 .hypothesis/
+
+# Test coverage cache
+.coverage

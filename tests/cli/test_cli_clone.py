@@ -9,6 +9,39 @@ from datetime import date
 from main import app
 
 
+def pocketsmith_patches():
+    """Decorator to patch all PocketSmith functions for testing."""
+    return [
+        patch("src.cli.clone.get_user"),
+        patch("src.cli.clone.get_transaction_accounts"),
+        patch("src.cli.clone.get_categories"),
+        patch("src.cli.clone.get_transactions"),
+        patch("src.cli.clone.PocketSmithClient"),
+    ]
+
+
+def setup_mocks(
+    mock_client_class,
+    mock_get_transactions,
+    mock_get_categories,
+    mock_get_transaction_accounts,
+    mock_get_user,
+    transactions=None,
+):
+    """Setup common mock configuration."""
+    if transactions is None:
+        transactions = []
+
+    mock_client = Mock()
+    mock_client_class.return_value = mock_client
+    mock_get_user.return_value = {"login": "test_user"}
+    mock_get_transaction_accounts.return_value = []
+    mock_get_categories.return_value = []
+    mock_get_transactions.return_value = transactions
+
+    return mock_client, mock_get_transactions
+
+
 class TestCloneCommandValidation:
     """Test clone command input validation."""
 
@@ -78,29 +111,42 @@ class TestCloneCommandFileHandling:
             finally:
                 Path(temp_file.name).unlink(missing_ok=True)
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_creates_changelog_single_file(self, mock_client_class):
+    def test_clone_creates_changelog_single_file(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that clone creates changelog in single file mode."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "transactions.beancount"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = [
-                {
-                    "id": 1,
-                    "payee": "Test Payee",
-                    "amount": "10.00",
-                    "date": "2024-01-01",
-                    "currency_code": "USD",
-                }
-            ]
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [
+                    {
+                        "id": 1,
+                        "payee": "Test Payee",
+                        "amount": "10.00",
+                        "date": "2024-01-01",
+                        "currency_code": "USD",
+                    }
+                ],
+            )
 
             result = runner.invoke(app, ["clone", str(dest_path), "-1"])
 
@@ -114,29 +160,42 @@ class TestCloneCommandFileHandling:
             content = changelog_path.read_text()
             assert "CLONE" in content
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_creates_changelog_hierarchical(self, mock_client_class):
+    def test_clone_creates_changelog_hierarchical(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that clone creates changelog in hierarchical mode."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = [
-                {
-                    "id": 1,
-                    "payee": "Test Payee",
-                    "amount": "10.00",
-                    "date": "2024-01-01",
-                    "currency_code": "USD",
-                }
-            ]
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [
+                    {
+                        "id": 1,
+                        "payee": "Test Payee",
+                        "amount": "10.00",
+                        "date": "2024-01-01",
+                        "currency_code": "USD",
+                    }
+                ],
+            )
 
             result = runner.invoke(app, ["clone", str(dest_path)])
 
@@ -155,21 +214,34 @@ class TestCloneCommandFileHandling:
 class TestCloneCommandDateParsing:
     """Test clone command date parsing."""
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_parses_full_date_format(self, mock_client_class):
+    def test_clone_parses_full_date_format(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that clone parses full date format correctly."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = []
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [],
+            )
 
             runner.invoke(
                 app,
@@ -177,32 +249,46 @@ class TestCloneCommandDateParsing:
             )
 
             # Should call get_transactions with correct date format
-            mock_client.get_transactions.assert_called_once()
-            call_args = mock_client.get_transactions.call_args
+            mock_get_transactions.assert_called_once()
+            call_args = mock_get_transactions.call_args
+            # The function is called with client as first arg, then keyword args
             assert call_args[1]["start_date"] == "2024-01-01"
             assert call_args[1]["end_date"] == "2024-12-31"
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_handles_this_month_option(self, mock_client_class):
+    def test_clone_handles_this_month_option(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that clone handles --this-month option."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = []
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [],
+            )
 
             runner.invoke(app, ["clone", str(dest_path), "--this-month"])
 
             # Should call get_transactions with this month's date range
-            mock_client.get_transactions.assert_called_once()
-            call_args = mock_client.get_transactions.call_args
+            mock_get_transactions.assert_called_once()
+            call_args = mock_get_transactions.call_args
 
             # Verify dates are from current month
             today = date.today()
@@ -228,29 +314,42 @@ class TestCloneCommandDateParsing:
 class TestCloneCommandQuietMode:
     """Test clone command quiet mode."""
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_quiet_suppresses_output(self, mock_client_class):
+    def test_clone_quiet_suppresses_output(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that --quiet suppresses informational output."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = [
-                {
-                    "id": 1,
-                    "payee": "Test Payee",
-                    "amount": "10.00",
-                    "date": "2024-01-01",
-                    "currency_code": "USD",
-                }
-            ]
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [
+                    {
+                        "id": 1,
+                        "payee": "Test Payee",
+                        "amount": "10.00",
+                        "date": "2024-01-01",
+                        "currency_code": "USD",
+                    }
+                ],
+            )
 
             result = runner.invoke(app, ["clone", str(dest_path), "--quiet"])
 
@@ -261,29 +360,42 @@ class TestCloneCommandQuietMode:
             # Should not contain summary
             assert "Ledger written to" not in result.output
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_normal_shows_summary(self, mock_client_class):
+    def test_clone_normal_shows_summary(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that normal mode shows summary output."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = [
-                {
-                    "id": 1,
-                    "payee": "Test Payee",
-                    "amount": "10.00",
-                    "date": "2024-01-01",
-                    "currency_code": "USD",
-                }
-            ]
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [
+                    {
+                        "id": 1,
+                        "payee": "Test Payee",
+                        "amount": "10.00",
+                        "date": "2024-01-01",
+                        "currency_code": "USD",
+                    }
+                ],
+            )
 
             result = runner.invoke(app, ["clone", str(dest_path)])
 
@@ -293,21 +405,34 @@ class TestCloneCommandQuietMode:
             assert "Changelog written to" in result.output
             assert "transactions cloned between dates" in result.output
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_summary_shows_null_dates(self, mock_client_class):
+    def test_clone_summary_shows_null_dates(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that summary shows (null) for unspecified dates."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = []
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [],
+            )
 
             result = runner.invoke(app, ["clone", str(dest_path)])
 
@@ -362,21 +487,34 @@ class TestCloneCommandHelp:
 class TestCloneCommandNoTransactions:
     """Test clone command behavior when no transactions are found."""
 
+    @patch("src.cli.clone.get_user")
+    @patch("src.cli.clone.get_transaction_accounts")
+    @patch("src.cli.clone.get_categories")
+    @patch("src.cli.clone.get_transactions")
     @patch("src.cli.clone.PocketSmithClient")
-    def test_clone_handles_no_transactions(self, mock_client_class):
+    def test_clone_handles_no_transactions(
+        self,
+        mock_client_class,
+        mock_get_transactions,
+        mock_get_categories,
+        mock_get_transaction_accounts,
+        mock_get_user,
+    ):
         """Test that clone handles no transactions gracefully."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             dest_path = Path(temp_dir) / "output"
 
-            # Mock the API client to return no transactions
-            mock_client = Mock()
-            mock_client_class.return_value = mock_client
-            mock_client.get_user.return_value = {"login": "test_user"}
-            mock_client.get_transaction_accounts.return_value = []
-            mock_client.get_categories.return_value = []
-            mock_client.get_transactions.return_value = []
+            # Setup mocks
+            mock_client, mock_get_transactions = setup_mocks(
+                mock_client_class,
+                mock_get_transactions,
+                mock_get_categories,
+                mock_get_transaction_accounts,
+                mock_get_user,
+                [],
+            )
 
             result = runner.invoke(app, ["clone", str(dest_path)])
 

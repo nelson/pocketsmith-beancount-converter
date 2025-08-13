@@ -8,7 +8,7 @@ import typer
 import yaml
 from dotenv import load_dotenv
 
-from ..pocketsmith_beancount.pocketsmith_client import PocketSmithClient
+from ..pocketsmith.common import PocketSmithClient
 from ..rules.loader import RuleLoader
 from ..rules.transformer import RuleTransformer
 from ..rules.matcher import RuleMatcher
