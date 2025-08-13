@@ -6,6 +6,7 @@ import pytest
 from click.exceptions import Exit
 
 from src.cli.diff import diff_command, DiffComparator
+from src.cli.date_options import DateOptions
 
 
 class TestDiffComparator:
@@ -213,14 +214,10 @@ class TestDiffCommand:
                 )
 
                 # Should not raise error
+                date_options = DateOptions()
                 diff_command(
                     destination=None,  # No destination provided
-                    from_date=None,
-                    to_date=None,
-                    this_month=False,
-                    last_month=False,
-                    this_year=False,
-                    last_year=False,
+                    date_options=date_options,
                     format="summary",
                 )
 
@@ -257,15 +254,11 @@ class TestDiffCommand:
                 )
 
                 with patch("src.cli.diff.typer.echo") as mock_echo:
+                    date_options = DateOptions()
                     diff_command(
                         destination=mock_destination,
                         format="summary",
-                        from_date=None,
-                        to_date=None,
-                        this_month=False,
-                        last_month=False,
-                        this_year=False,
-                        last_year=False,
+                        date_options=date_options,
                     )
 
                     # Should output summary
@@ -308,15 +301,11 @@ class TestDiffCommand:
                 )
 
                 with patch("src.cli.diff.typer.echo") as mock_echo:
+                    date_options = DateOptions()
                     diff_command(
                         destination=mock_destination,
                         format="ids",
-                        from_date=None,
-                        to_date=None,
-                        this_month=False,
-                        last_month=False,
-                        this_year=False,
-                        last_year=False,
+                        date_options=date_options,
                     )
 
                     # Should output only ID 1 (which is different)
@@ -356,15 +345,11 @@ class TestDiffCommand:
                 )
 
                 with patch("src.cli.diff.typer.echo") as mock_echo:
+                    date_options = DateOptions()
                     diff_command(
                         destination=mock_destination,
                         format="changelog",
-                        from_date=None,
-                        to_date=None,
-                        this_month=False,
-                        last_month=False,
-                        this_year=False,
-                        last_year=False,
+                        date_options=date_options,
                     )
 
                     # Should output changelog format
@@ -403,15 +388,11 @@ class TestDiffCommand:
                 )
 
                 with patch("src.cli.diff.typer.echo") as mock_echo:
+                    date_options = DateOptions()
                     diff_command(
                         destination=mock_destination,
                         format="diff",
-                        from_date=None,
-                        to_date=None,
-                        this_month=False,
-                        last_month=False,
-                        this_year=False,
-                        last_year=False,
+                        date_options=date_options,
                     )
 
                     # Should output diff format
@@ -440,15 +421,11 @@ class TestDiffCommand:
         with patch("src.cli.diff.determine_single_file_mode") as mock_determine_mode:
             mock_determine_mode.return_value = True
 
+            date_options = DateOptions(from_date="2024-02-01", to_date="2024-02-29")
             diff_command(
                 destination=mock_destination,
                 format="summary",
-                from_date="2024-02-01",
-                to_date="2024-02-29",
-                this_month=False,
-                last_month=False,
-                this_year=False,
-                last_year=False,
+                date_options=date_options,
             )
 
             # Should call get_transactions with specific date range
@@ -479,15 +456,11 @@ class TestDiffCommand:
                 )
 
                 with pytest.raises(Exit):
+                    date_options = DateOptions()
                     diff_command(
                         destination=mock_destination,
                         format="summary",
-                        from_date=None,
-                        to_date=None,
-                        this_month=False,
-                        last_month=False,
-                        this_year=False,
-                        last_year=False,
+                        date_options=date_options,
                     )
 
     def test_diff_nonexistent_destination_error(self):
@@ -496,15 +469,11 @@ class TestDiffCommand:
         mock_destination.exists.return_value = False
 
         with pytest.raises(Exit):
+            date_options = DateOptions()
             diff_command(
                 destination=mock_destination,
                 format="summary",
-                from_date=None,
-                to_date=None,
-                this_month=False,
-                last_month=False,
-                this_year=False,
-                last_year=False,
+                date_options=date_options,
             )
 
     @patch("src.cli.diff.PocketSmithClient")
@@ -536,13 +505,9 @@ class TestDiffCommand:
                 )
 
                 with pytest.raises(Exit):
+                    date_options = DateOptions()
                     diff_command(
                         destination=mock_destination,
                         format="invalid_format",  # Invalid format
-                        from_date=None,
-                        to_date=None,
-                        this_month=False,
-                        last_month=False,
-                        this_year=False,
-                        last_year=False,
+                        date_options=date_options,
                     )
