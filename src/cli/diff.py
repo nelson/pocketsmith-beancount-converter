@@ -22,7 +22,7 @@ from .changelog import ChangelogManager, determine_changelog_path
 from .file_handler import find_default_beancount_file, FileHandlerError
 
 # Import existing functionality
-from ..pocketsmith_beancount.pocketsmith_client import PocketSmithClient
+from ..pocketsmith.common import PocketSmithClient
 
 
 class DiffComparator:

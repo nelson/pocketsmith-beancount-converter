@@ -25,10 +25,15 @@ from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
 from .date_options import DateOptions
 
-# Import existing functionality
-from ..pocketsmith_beancount.pocketsmith_client import PocketSmithClient
-from ..pocketsmith_beancount.beancount_converter import BeancountConverter
-from ..pocketsmith_beancount.file_writer import BeancountFileWriter
+# Import refactored functionality
+from ..pocketsmith import (
+    get_user,
+    get_transaction_accounts,
+    get_categories,
+    get_transactions,
+)
+from ..pocketsmith.common import PocketSmithClient
+from ..beancount.write import write_hierarchical_ledger
 
 
 def clone_command(
@@ -105,7 +110,7 @@ def clone_command(
             typer.echo("Connecting to PocketSmith API...")
         try:
             client = PocketSmithClient()
-            user = client.get_user()
+            user = get_user(client)
             if not quiet:
                 typer.echo(f"Connected as: {user.get('login', 'Unknown User')}")
         except Exception as e:
@@ -116,7 +121,7 @@ def clone_command(
         if not quiet:
             typer.echo("Fetching transaction accounts...")
         try:
-            transaction_accounts = client.get_transaction_accounts()
+            transaction_accounts = get_transaction_accounts(client)
             if not quiet:
                 typer.echo(f"Found {len(transaction_accounts)} transaction accounts")
         except Exception as e:
@@ -126,7 +131,7 @@ def clone_command(
         if not quiet:
             typer.echo("Fetching categories...")
         try:
-            categories = client.get_categories()
+            categories = get_categories(client)
             if not quiet:
                 typer.echo(f"Found {len(categories)} categories")
         except Exception as e:
@@ -136,10 +141,11 @@ def clone_command(
         if not quiet:
             typer.echo("Fetching transactions...")
         try:
-            transactions = client.get_transactions(
+            transactions = get_transactions(
                 start_date=start_date_str,
                 end_date=end_date_str,
                 account_id=None,  # Could be added as a future option
+                client=client,
             )
 
             if not quiet:
@@ -198,24 +204,38 @@ def clone_command(
                 typer.echo(f"Warning: Failed to fetch account balances: {e}", err=True)
             account_balances = {}
 
-        # Convert to Beancount format
+        # Write to Beancount format
         if not quiet:
-            typer.echo("Converting to Beancount format...")
-        converter = BeancountConverter()
+            typer.echo("Writing to Beancount format...")
 
         if single_file:
-            # Single file output
+            # Single file output - need to implement this in new structure
             output_file = get_output_file_path(dest_path, single_file)
 
-            beancount_content = converter.convert_transactions(
-                transactions, transaction_accounts, categories, account_balances
+            # For now, use a simple approach
+            from ..beancount.write import (
+                generate_transactions_content,
+                generate_main_file_content,
             )
+
+            # Generate all transactions in one file
+            content = generate_main_file_content(
+                [],  # No year_months for single file
+                transaction_accounts,
+                categories,
+                account_balances,
+            )
+
+            # Add transactions
+            transaction_content = generate_transactions_content(transactions)
+            if transaction_content:
+                content += "\n\n" + transaction_content
 
             if not quiet:
                 typer.echo("Writing to file...")
             try:
                 with open(output_file, "w", encoding="utf-8") as f:
-                    f.write(beancount_content)
+                    f.write(content)
             except Exception as e:
                 typer.echo(f"Error: Failed to write file: {e}", err=True)
                 raise typer.Exit(1)
@@ -223,17 +243,15 @@ def clone_command(
             # Hierarchical file structure
             create_hierarchical_structure(dest_path)
 
-            writer = BeancountFileWriter(str(dest_path))
-
             if not quiet:
                 typer.echo("Using hierarchical file structure...")
             try:
-                writer.write_hierarchical_beancount_files(
+                write_hierarchical_ledger(
                     transactions,
                     transaction_accounts,
                     categories,
+                    str(dest_path),
                     account_balances,
-                    converter,
                 )
             except Exception as e:
                 typer.echo(f"Error: Failed to write hierarchical files: {e}", err=True)
