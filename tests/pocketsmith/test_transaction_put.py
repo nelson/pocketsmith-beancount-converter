@@ -1,13 +1,41 @@
-"""Extra tests for transaction_put helpers and batch updates."""
+"""Tests for pocketsmith.transaction_put module functionality."""
 
 from typing import Any
+from unittest.mock import patch
+
+import pytest
+import requests
 
 from src.pocketsmith.transaction_put import (
+    update_transaction,
     batch_update_transactions,
     update_transaction_note,
     update_transaction_labels,
 )
 from src.pocketsmith.common import PocketSmithClient
+
+
+@patch("requests.put", autospec=True)
+def test_update_transaction_invalid_updates_returns_false(mock_put):
+    client = PocketSmithClient(api_key="k")
+    # Invalid note type triggers validate_update_data -> False
+    ok = update_transaction("1", {"note": 123}, client=client)
+    assert ok is False
+    mock_put.assert_not_called()
+
+
+@patch("requests.put", autospec=True)
+def test_update_transaction_requests_exception_branch(mock_put):
+    client = PocketSmithClient(api_key="k")
+
+    def raise_req_exc(*args: Any, **kwargs: Any) -> Any:
+        raise requests.RequestException("net")
+
+    mock_put.side_effect = raise_req_exc
+
+    with pytest.raises(Exception) as exc:
+        update_transaction("1", {"note": "x"}, client=client)
+    assert "Network error updating transaction" in str(exc.value)
 
 
 def test_batch_update_transactions_success_and_missing_id(monkeypatch):
