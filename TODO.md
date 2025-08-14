@@ -119,6 +119,14 @@ Python 3-based program that retrieves information from PocketSmith and writes th
 ## Current Status
 **Phases 1-7 Complete** - PocketSmith-to-Beancount converter fully implemented with comprehensive test coverage, advanced file management features, and bidirectional synchronization.
 
+## Phase 11 Follow-ups
+
+- Improve local beancount parsing to power accurate diff/push (current stub returns empty results).
+- Extend PocketSmith API update mapping to support more fields safely (validation + conversion).
+- Add unit tests for `src/cli/push.py` and changelog `write_push_entry`.
+- Consider consolidating date range logic across `pull`, `diff`, `push` into a shared helper.
+- Evaluate performance of batch updates and add throttling/backoff strategies.
+
 **✅ Phase 7 COMPLETED** - All bidirectional synchronization features implemented:
 - ✅ **25+ of 25 Phase 7 features COMPLETED**
 - ✅ **5 field resolution strategies with intelligent conflict resolution**

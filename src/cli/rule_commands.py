@@ -176,9 +176,29 @@ def rule_apply_command(
                             f"Error updating transaction in PocketSmith: {e}", err=True
                         )
 
-            # Log the application
+            # Log the application to changelog and terminal
+            # Prefer ChangelogManager APPLY entries; also allow transformer logging if available
             for app in applications:
                 if app.status.value == "SUCCESS":
+                    # Write APPLY entry if supported by the changelog manager
+                    try:
+                        if hasattr(changelog, "write_apply_entry"):
+                            changelog.write_apply_entry(
+                                app.transaction_id,
+                                app.rule_id,
+                                app.field_name,
+                                str(app.new_value),
+                            )
+                    except Exception:
+                        pass
+
+                    # Optional detailed logging via transformer (labels, overwrite), guarded
+                    try:
+                        if hasattr(transformer.changelog, "log_entry"):
+                            transformer.log_applications([app])
+                    except Exception:
+                        pass
+
                     timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[:-3]
                     typer.echo(
                         f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"

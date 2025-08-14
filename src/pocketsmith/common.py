@@ -200,6 +200,7 @@ def convert_to_api_format(updates: Dict[str, Any]) -> Dict[str, Any]:
         "memo": "memo",
         "labels": "labels",
         "tags": "labels",  # Tags map to labels in API
+        "category_id": "category_id",
     }
 
     for field_name, value in updates.items():
