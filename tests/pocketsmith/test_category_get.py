@@ -1,20 +1,16 @@
 """Tests for pocketsmith.category_get module functionality."""
 
 import pytest
-from unittest.mock import Mock, patch
 
 from src.pocketsmith.category_get import get_categories
-from src.pocketsmith.common import PocketSmithClient
 
 
 class TestGetCategories:
     """Test category retrieval functions."""
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_with_client(self, mock_get_user):
+    def test_get_categories_with_client(self, patch_get_user, mock_client):
         """Test getting categories with provided client."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        mock_get_user = patch_get_user("category_get", user_id=123)
 
         mock_categories = [
             {"id": 1, "title": "Food & Dining", "is_income": False},
@@ -29,13 +25,12 @@ class TestGetCategories:
         mock_get_user.assert_called_once_with(mock_client)
         mock_client._make_request.assert_called_once_with("users/123/categories")
 
-    @patch("src.pocketsmith.category_get.get_user")
-    @patch("src.pocketsmith.category_get.PocketSmithClient")
-    def test_get_categories_with_api_key(self, mock_client_class, mock_get_user):
+    def test_get_categories_with_api_key(
+        self, patch_get_user, patch_client_class, mock_client
+    ):
         """Test getting categories with API key (creates new client)."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_client_class.return_value = mock_client
-        mock_get_user.return_value = {"id": 456}
+        mock_get_user = patch_get_user("category_get", user_id=456)
+        mock_client_class = patch_client_class("category_get")
 
         mock_categories = [{"id": 5, "title": "Shopping", "is_income": False}]
         mock_client._make_request.return_value = mock_categories
@@ -47,11 +42,9 @@ class TestGetCategories:
         mock_get_user.assert_called_once_with(mock_client)
         mock_client._make_request.assert_called_once_with("users/456/categories")
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_non_list_response(self, mock_get_user):
+    def test_get_categories_non_list_response(self, patch_get_user, mock_client):
         """Test handling non-list response from API."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("category_get", user_id=123)
 
         # API returns non-list response
         mock_client._make_request.return_value = {"error": "Forbidden"}
@@ -60,41 +53,36 @@ class TestGetCategories:
 
         assert result == []
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_empty_list(self, mock_get_user):
+    def test_get_categories_empty_list(self, patch_get_user, mock_client):
         """Test handling empty list response."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("category_get", user_id=123)
         mock_client._make_request.return_value = []
 
         result = get_categories(client=mock_client)
 
         assert result == []
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_api_error(self, mock_get_user):
+    def test_get_categories_api_error(self, patch_get_user, mock_client):
         """Test handling API request error."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("category_get", user_id=123)
         mock_client._make_request.side_effect = Exception("Network timeout")
 
         with pytest.raises(Exception):
             get_categories(client=mock_client)
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_get_user_fails(self, mock_get_user):
+    def test_get_categories_get_user_fails(
+        self, patch_get_user, mock_client
+    ):
         """Test handling get_user failure."""
-        mock_client = Mock(spec=PocketSmithClient)
+        mock_get_user = patch_get_user("category_get")
         mock_get_user.side_effect = KeyError("id")  # User dict missing 'id'
 
         with pytest.raises(KeyError):
             get_categories(client=mock_client)
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_string_response(self, mock_get_user):
+    def test_get_categories_string_response(self, patch_get_user, mock_client):
         """Test handling string response from API."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("category_get", user_id=123)
 
         # API returns string instead of list
         mock_client._make_request.return_value = "Error message"
@@ -107,11 +95,10 @@ class TestGetCategories:
 class TestPropertyBasedTests:
     """Property-based tests for category functions."""
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_various_user_ids(self, mock_get_user):
+    def test_get_categories_various_user_ids(self, patch_get_user, mock_client):
         """Test different user IDs construct correct API paths."""
-        mock_client = Mock(spec=PocketSmithClient)
         mock_client._make_request.return_value = []
+        mock_get_user = patch_get_user("category_get")
 
         for user_id in [1, 456, 789123]:
             mock_get_user.return_value = {"id": user_id}
@@ -119,11 +106,9 @@ class TestPropertyBasedTests:
             expected_path = f"users/{user_id}/categories"
             mock_client._make_request.assert_called_with(expected_path)
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_response_handling(self, mock_get_user):
+    def test_get_categories_response_handling(self, patch_get_user, mock_client):
         """Test category list responses are returned as-is."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("category_get", user_id=123)
 
         category_lists = [
             [],
@@ -136,11 +121,9 @@ class TestPropertyBasedTests:
             result = get_categories(client=mock_client)
             assert result == category_list
 
-    @patch("src.pocketsmith.category_get.get_user")
-    def test_get_categories_invalid_responses(self, mock_get_user):
+    def test_get_categories_invalid_responses(self, patch_get_user, mock_client):
         """Test non-list responses return empty list."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("category_get", user_id=123)
 
         invalid_responses = ["error", {"error": "not found"}, 404, None]
 

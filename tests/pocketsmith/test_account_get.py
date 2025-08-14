@@ -1,20 +1,16 @@
 """Tests for pocketsmith.account_get module functionality."""
 
 import pytest
-from unittest.mock import Mock, patch
 
 from src.pocketsmith.account_get import get_accounts, get_transaction_accounts
-from src.pocketsmith.common import PocketSmithClient
 
 
 class TestGetAccounts:
     """Test account retrieval functions."""
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_accounts_with_client(self, mock_get_user):
+    def test_get_accounts_with_client(self, patch_get_user, mock_client):
         """Test getting accounts with provided client."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        mock_get_user = patch_get_user("account_get", user_id=123)
 
         mock_accounts = [
             {"id": 1, "name": "Checking", "balance": "1000.00"},
@@ -28,13 +24,12 @@ class TestGetAccounts:
         mock_get_user.assert_called_once_with(mock_client)
         mock_client._make_request.assert_called_once_with("users/123/accounts")
 
-    @patch("src.pocketsmith.account_get.get_user")
-    @patch("src.pocketsmith.account_get.PocketSmithClient")
-    def test_get_accounts_with_api_key(self, mock_client_class, mock_get_user):
+    def test_get_accounts_with_api_key(
+        self, patch_get_user, patch_client_class, mock_client
+    ):
         """Test getting accounts with API key (creates new client)."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_client_class.return_value = mock_client
-        mock_get_user.return_value = {"id": 456}
+        mock_get_user = patch_get_user("account_get", user_id=456)
+        mock_client_class = patch_client_class("account_get")
 
         mock_accounts = [{"id": 1, "name": "Test Account"}]
         mock_client._make_request.return_value = mock_accounts
@@ -46,11 +41,9 @@ class TestGetAccounts:
         mock_get_user.assert_called_once_with(mock_client)
         mock_client._make_request.assert_called_once_with("users/456/accounts")
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_accounts_non_list_response(self, mock_get_user):
+    def test_get_accounts_non_list_response(self, patch_get_user, mock_client):
         """Test handling non-list response from API."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("account_get", user_id=123)
 
         # API returns non-list response
         mock_client._make_request.return_value = {"error": "Not found"}
@@ -59,22 +52,18 @@ class TestGetAccounts:
 
         assert result == []
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_accounts_empty_list(self, mock_get_user):
+    def test_get_accounts_empty_list(self, patch_get_user, mock_client):
         """Test handling empty list response."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("account_get", user_id=123)
         mock_client._make_request.return_value = []
 
         result = get_accounts(client=mock_client)
 
         assert result == []
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_accounts_api_error(self, mock_get_user):
+    def test_get_accounts_api_error(self, patch_get_user, mock_client):
         """Test handling API request error."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("account_get", user_id=123)
         mock_client._make_request.side_effect = Exception("API Error")
 
         with pytest.raises(Exception):
@@ -84,11 +73,9 @@ class TestGetAccounts:
 class TestGetTransactionAccounts:
     """Test transaction account retrieval functions."""
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_transaction_accounts_with_client(self, mock_get_user):
+    def test_get_transaction_accounts_with_client(self, patch_get_user, mock_client):
         """Test getting transaction accounts with provided client."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 789}
+        mock_get_user = patch_get_user("account_get", user_id=789)
 
         mock_accounts = [
             {"id": 1, "name": "Main Account", "type": "bank"},
@@ -104,15 +91,12 @@ class TestGetTransactionAccounts:
             "users/789/transaction_accounts"
         )
 
-    @patch("src.pocketsmith.account_get.get_user")
-    @patch("src.pocketsmith.account_get.PocketSmithClient")
     def test_get_transaction_accounts_with_api_key(
-        self, mock_client_class, mock_get_user
+        self, patch_get_user, patch_client_class, mock_client
     ):
         """Test getting transaction accounts with API key."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_client_class.return_value = mock_client
-        mock_get_user.return_value = {"id": 999}
+        mock_get_user = patch_get_user("account_get", user_id=999)
+        mock_client_class = patch_client_class("account_get")
 
         mock_accounts = [{"id": 5, "name": "Investment Account"}]
         mock_client._make_request.return_value = mock_accounts
@@ -126,11 +110,11 @@ class TestGetTransactionAccounts:
             "users/999/transaction_accounts"
         )
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_transaction_accounts_non_list_response(self, mock_get_user):
+    def test_get_transaction_accounts_non_list_response(
+        self, patch_get_user, mock_client
+    ):
         """Test handling non-list response from transaction accounts API."""
-        mock_client = Mock(spec=PocketSmithClient)
-        mock_get_user.return_value = {"id": 123}
+        patch_get_user("account_get", user_id=123)
 
         # API returns non-list response
         mock_client._make_request.return_value = {"message": "Unauthorized"}
@@ -139,10 +123,11 @@ class TestGetTransactionAccounts:
 
         assert result == []
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_transaction_accounts_get_user_fails(self, mock_get_user):
+    def test_get_transaction_accounts_get_user_fails(
+        self, patch_get_user, mock_client
+    ):
         """Test handling get_user failure."""
-        mock_client = Mock(spec=PocketSmithClient)
+        mock_get_user = patch_get_user("account_get")
         mock_get_user.side_effect = Exception("User fetch failed")
 
         with pytest.raises(Exception):
@@ -152,11 +137,10 @@ class TestGetTransactionAccounts:
 class TestPropertyBasedTests:
     """Property-based tests for account functions."""
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_accounts_various_user_ids(self, mock_get_user):
+    def test_get_accounts_various_user_ids(self, patch_get_user, mock_client):
         """Test different user IDs construct correct API paths."""
-        mock_client = Mock(spec=PocketSmithClient)
         mock_client._make_request.return_value = []
+        mock_get_user = patch_get_user("account_get")
 
         for user_id in [1, 123, 999999]:
             mock_get_user.return_value = {"id": user_id}
@@ -164,11 +148,12 @@ class TestPropertyBasedTests:
             expected_path = f"users/{user_id}/accounts"
             mock_client._make_request.assert_called_with(expected_path)
 
-    @patch("src.pocketsmith.account_get.get_user")
-    def test_get_transaction_accounts_various_user_ids(self, mock_get_user):
+    def test_get_transaction_accounts_various_user_ids(
+        self, patch_get_user, mock_client
+    ):
         """Test different user IDs construct correct API paths."""
-        mock_client = Mock(spec=PocketSmithClient)
         mock_client._make_request.return_value = []
+        mock_get_user = patch_get_user("account_get")
 
         for user_id in [1, 456, 789123]:
             mock_get_user.return_value = {"id": user_id}
