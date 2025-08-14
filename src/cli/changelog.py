@@ -51,6 +51,17 @@ class ChangelogManager:
         )
         self._append_entry(entry)
 
+    def write_push_entry(
+        self, from_date: Optional[str], to_date: Optional[str]
+    ) -> None:
+        """Write a PUSH entry to the changelog."""
+        entry = ChangelogEntry(
+            timestamp=datetime.now(),
+            operation="PUSH",
+            details=[from_date or "", to_date or ""],
+        )
+        self._append_entry(entry)
+
     def write_overwrite_entry(
         self, transaction_id: str, key: str, old_value: str, new_value: str
     ) -> None:
@@ -70,6 +81,17 @@ class ChangelogManager:
             timestamp=datetime.now(),
             operation="UPDATE",
             details=[transaction_id, key, f"{old_value} → {new_value}"],
+        )
+        self._append_entry(entry)
+
+    def write_apply_entry(
+        self, transaction_id: str, rule_id: int, key: str, new_value: str
+    ) -> None:
+        """Write an APPLY entry to the changelog for rule application."""
+        entry = ChangelogEntry(
+            timestamp=datetime.now(),
+            operation="APPLY",
+            details=[transaction_id, "RULE", str(rule_id), key, str(new_value)],
         )
         self._append_entry(entry)
 

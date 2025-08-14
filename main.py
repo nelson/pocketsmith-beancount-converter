@@ -7,6 +7,7 @@ from typing import Optional, List
 from src.cli.clone import clone_command
 from src.cli.pull import pull_command
 from src.cli.diff import diff_command
+from src.cli.push import push_command
 from src.cli.common import handle_default_destination, transaction_id_option
 from src.cli.date_options import DateOptions
 
@@ -28,7 +29,7 @@ def help() -> None:
     )
     typer.echo("  pull    Update local Beancount ledger with recent PocketSmith data")
     typer.echo("  diff    Compare local beancount ledger with remote PocketSmith data")
-    typer.echo("  push    Upload local changes to PocketSmith (coming soon)")
+    typer.echo("  push    Upload local changes to PocketSmith")
     typer.echo("  rule    Manage transaction processing rules")
     typer.echo("  help    Show this help message")
     typer.echo("")
@@ -337,9 +338,25 @@ def push(
     ),
 ) -> None:
     """Upload local changes to PocketSmith."""
-    typer.echo("Push command is not yet implemented.")
-    typer.echo("Use 'peabody diff' to see what changes would be pushed.")
-    raise typer.Exit(1)
+    destination = handle_default_destination(destination)
+
+    date_options = DateOptions(
+        from_date=from_date,
+        to_date=to_date,
+        this_month=this_month,
+        last_month=last_month,
+        this_year=this_year,
+        last_year=last_year,
+    )
+
+    push_command(
+        destination=destination,
+        dry_run=dry_run,
+        verbose=verbose,
+        quiet=quiet,
+        transaction_id=transaction_id,
+        date_options=date_options,
+    )
 
 
 # Create rule sub-app

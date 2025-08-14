@@ -23,6 +23,9 @@ from .file_handler import find_default_beancount_file, FileHandlerError
 
 # Import existing functionality
 from ..pocketsmith.common import PocketSmithClient
+from ..beancount.read import read_ledger
+from beancount.core import data as bc_data
+from decimal import Decimal
 
 
 class DiffComparator:
@@ -195,16 +198,102 @@ class DiffComparator:
 
 
 def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str, Any]]:
-    """Read existing transactions from beancount files.
+    """Read transactions from beancount and map to comparable local fields.
 
-    This is a placeholder implementation. In reality, we'd need to parse
-    the beancount files to extract transaction metadata.
-
-    Returns:
-        Dict mapping transaction ID to transaction data
+    Produces mapping: id -> {amount, payee, merchant, category_id, labels, note}
     """
-    # TODO: Implement actual beancount file parsing
-    return {}
+    # Determine the main file to parse
+    ledger_file = path if single_file else (path / "main.beancount")
+    if not ledger_file.exists():
+        return {}
+
+    try:
+        entries, _errors, _opts = read_ledger(str(ledger_file))
+    except Exception:
+        return {}
+
+    # Build category account -> id mapping from Open directives metadata
+    category_id_map: Dict[str, Optional[int]] = {}
+    for entry in entries:
+        if isinstance(entry, bc_data.Open):
+            account = entry.account
+            if account.startswith(("Expenses:", "Income:", "Transfers:")):
+                meta = entry.meta or {}
+                cat_id = meta.get("id")
+                try:
+                    category_id_map[account] = (
+                        int(str(cat_id)) if cat_id is not None else None
+                    )
+                except Exception:
+                    category_id_map[account] = None
+
+    # Extract transactions
+    local: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        if isinstance(entry, bc_data.Transaction):
+            meta = entry.meta or {}
+            tx_id = meta.get("id")
+            if tx_id is None:
+                continue
+            tx_id = str(tx_id)
+
+            payee = entry.payee or ""
+            narration = entry.narration or ""
+            labels = list(entry.tags) if entry.tags else []
+
+            # Determine amount and category account from postings
+            amount_val: Optional[float] = None
+            category_account: Optional[str] = None
+            for p in entry.postings:
+                acct = p.account
+                if p.units is None:
+                    continue
+                number_val = p.units.number
+                if isinstance(number_val, Decimal):
+                    num = float(number_val)
+                elif number_val is None:
+                    num = 0.0
+                else:
+                    try:
+                        num = float(number_val)
+                    except Exception:
+                        num = 0.0
+
+                if acct.startswith(("Assets:", "Liabilities:")):
+                    amount_val = abs(num)
+                elif acct.startswith(("Expenses:", "Income:", "Transfers:")):
+                    category_account = acct
+
+            # Fallback amount: take first posting absolute value
+            if amount_val is None and entry.postings:
+                p0 = entry.postings[0]
+                if p0.units is not None:
+                    n0 = p0.units.number
+                    if isinstance(n0, Decimal):
+                        amount_val = abs(float(n0))
+                    elif n0 is None:
+                        amount_val = None
+                    else:
+                        try:
+                            amount_val = abs(float(n0))
+                        except Exception:
+                            amount_val = None
+
+            # Map category account to id if possible
+            category_id = None
+            if category_account:
+                category_id = category_id_map.get(category_account)
+
+            local[tx_id] = {
+                "amount": amount_val,
+                "payee": payee,
+                "merchant": payee,
+                "category_id": category_id,
+                "labels": sorted(list(labels)),
+                "note": narration,
+            }
+
+    return local
 
 
 def determine_single_file_mode(path: Path) -> bool:
@@ -320,10 +409,14 @@ def diff_command(
 
         # Fetch transactions (without updated_since to get all in range)
         try:
-            transactions = client.get_transactions(
-                start_date=start_date_str,
-                end_date=end_date_str,
-            )
+            if transaction_id:
+                txn = client.get_transaction(int(transaction_id))
+                transactions = [txn]
+            else:
+                transactions = client.get_transactions(
+                    start_date=start_date_str,
+                    end_date=end_date_str,
+                )
         except Exception as e:
             typer.echo(f"Error: Failed to fetch transactions: {e}", err=True)
             raise typer.Exit(1)

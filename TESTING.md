@@ -2,6 +2,17 @@
 
 ## ✅ Phase 10: Comprehensive Unit Testing Implementation (COMPLETED)
 
+## ➕ Phase 11: Push and Rules Addendum Testing
+
+- New CLI surfaces: `push` command wired; `--id` option on `pull`, `push`, `diff` recognized.
+- Changelog additions: verifies `PUSH [FROM] [TO]` and `UPDATE` entry formatting; skipped during `--dry-run`.
+- Rule engine: `rule apply` logs `APPLY` entries to changelog (and prints in dry-run).
+
+Suggested checks:
+- Run `peabody help` to see subcommands listed (including push).
+- Run `peabody diff --id 123` to ensure ID targeting doesn’t error.
+- Run `peabody push -n` to confirm dry-run prints and doesn’t alter changelog.
+
 ### 🎯 **Testing Mission Statement**
 Create comprehensive unit tests for all missing modules (beancount, changelog, compare, pocketsmith, resolve) to achieve 90%+ test coverage with robust property-based testing using Hypothesis.
 

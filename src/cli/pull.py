@@ -22,6 +22,7 @@ from .date_options import DateOptions
 # Import refactored functionality
 from ..pocketsmith.common import PocketSmithClient
 from ..beancount.write import write_hierarchical_ledger
+from .diff import read_local_transactions as _read_local_for_diff
 
 
 class TransactionComparator:
@@ -112,17 +113,8 @@ class TransactionComparator:
 def read_existing_transactions(
     path: Path, single_file: bool
 ) -> Dict[str, Dict[str, Any]]:
-    """Read existing transactions from beancount files.
-
-    Returns:
-        Dict mapping transaction ID to transaction data
-    """
-    transactions: Dict[str, Dict[str, Any]] = {}
-
-    # This is a simplified implementation - in reality, we'd need to parse
-    # the beancount files to extract transaction metadata
-    # For now, return empty dict to allow the pull to proceed
-    return transactions
+    """Read existing transactions leveraging the diff reader implementation."""
+    return _read_local_for_diff(path, single_file)
 
 
 def determine_single_file_mode(path: Path) -> bool:
