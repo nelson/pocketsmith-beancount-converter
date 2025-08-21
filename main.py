@@ -377,15 +377,31 @@ def rule_main(
     then_params: Optional[List[str]] = typer.Option(
         None, "--then", help="Add transform: key=value"
     ),
+    destination: Optional[Path] = typer.Option(
+        None,
+        "--destination",
+        help="File or directory to work with (defaults to current directory's beancount file)",
+    ),
+    rules: Optional[Path] = typer.Option(
+        None,
+        "--rules",
+        help="Rules file or directory (single .yaml file or directory containing .yaml files)",
+    ),
 ) -> None:
     """Manage transaction processing rules."""
     if ctx.invoked_subcommand is None:
         # If no subcommand provided, show help
         typer.echo(ctx.get_help())
 
+    # Store the options in context for subcommands to use
+    ctx.ensure_object(dict)
+    ctx.obj["destination"] = destination
+    ctx.obj["rules"] = rules
+
 
 @rule_app.command("add")
 def rule_add(
+    ctx: typer.Context,
     if_params: List[str] = typer.Option(
         ..., "--if", help="Precondition: key=value (e.g., --if merchant=starbucks)"
     ),
@@ -400,21 +416,30 @@ def rule_add(
     """
     from src.cli.rule_commands import rule_add_command
 
-    rule_add_command(if_params, then_params)
+    # Get destination and rules from parent context
+    destination = ctx.obj.get("destination") if ctx.obj else None
+    rules = ctx.obj.get("rules") if ctx.obj else None
+
+    rule_add_command(if_params, then_params, destination, rules)
 
 
 @rule_app.command("rm")
 def rule_remove(
+    ctx: typer.Context,
     rule_id: int = typer.Argument(..., help="Rule ID to remove"),
 ) -> None:
     """Remove a transaction processing rule."""
     from src.cli.rule_commands import rule_remove_command
 
-    rule_remove_command(rule_id)
+    # Get rules from parent context
+    rules = ctx.obj.get("rules") if ctx.obj else None
+
+    rule_remove_command(rule_id, rules)
 
 
 @rule_app.command("apply")
 def rule_apply(
+    ctx: typer.Context,
     rule_id: int = typer.Argument(..., help="Rule ID to apply"),
     transaction_id: str = typer.Argument(..., help="Transaction ID to apply rule to"),
     dry_run: bool = typer.Option(
@@ -424,7 +449,11 @@ def rule_apply(
     """Apply a specific rule to a specific transaction."""
     from src.cli.rule_commands import rule_apply_command
 
-    rule_apply_command(rule_id, transaction_id, dry_run)
+    # Get destination and rules from parent context
+    destination = ctx.obj.get("destination") if ctx.obj else None
+    rules = ctx.obj.get("rules") if ctx.obj else None
+
+    rule_apply_command(rule_id, transaction_id, dry_run, destination, rules)
 
 
 def main() -> None:

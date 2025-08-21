@@ -18,7 +18,7 @@ def test_rule_apply_writes_apply_entries_to_changelog(
     )
 
     # Make CLI use our rules file
-    monkeypatch.setattr(rc, "_find_rules_file", lambda: rules_path)
+    monkeypatch.setattr(rc, "_find_rules_file", lambda *args, **kwargs: rules_path)
 
     # Use real RuleLoader to parse YAML
     from src.rules.loader import RuleLoader as RealRuleLoader

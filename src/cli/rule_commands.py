@@ -1,7 +1,7 @@
 """Rule management commands for the CLI."""
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 import typer
@@ -16,7 +16,12 @@ from .changelog import ChangelogManager, determine_changelog_path
 from .file_handler import find_default_beancount_file, FileHandlerError
 
 
-def rule_add_command(if_params: List[str], then_params: List[str]) -> None:
+def rule_add_command(
+    if_params: List[str],
+    then_params: List[str],
+    destination: Optional[Path] = None,
+    rules_path: Optional[Path] = None,
+) -> None:
     """Add a new transaction processing rule."""
     try:
         # Parse preconditions
@@ -24,7 +29,7 @@ def rule_add_command(if_params: List[str], then_params: List[str]) -> None:
         transforms = _parse_rule_params(then_params, "transform")
 
         # Find rules file
-        rules_file = _find_rules_file()
+        rules_file = _find_rules_file(destination, rules_path)
 
         # Load existing rules to determine next ID
         rule_loader = RuleLoader()
@@ -50,6 +55,8 @@ def rule_add_command(if_params: List[str], then_params: List[str]) -> None:
                 rules_data = yaml.safe_load(f) or []
         else:
             rules_data = []
+            # Create parent directory if it doesn't exist
+            rules_file.parent.mkdir(parents=True, exist_ok=True)
 
         rules_data.append(new_rule_data)
 
@@ -64,11 +71,11 @@ def rule_add_command(if_params: List[str], then_params: List[str]) -> None:
         raise typer.Exit(1)
 
 
-def rule_remove_command(rule_id: int) -> None:
+def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None:
     """Remove a transaction processing rule by marking it as disabled."""
     try:
         # Find rules file
-        rules_file = _find_rules_file()
+        rules_file = _find_rules_file(None, rules_path)
 
         if not rules_file.exists():
             typer.echo(f"Error: Rules file not found: {rules_file}", err=True)
@@ -102,14 +109,18 @@ def rule_remove_command(rule_id: int) -> None:
 
 
 def rule_apply_command(
-    rule_id: int, transaction_id: str, dry_run: bool = False
+    rule_id: int,
+    transaction_id: str,
+    dry_run: bool = False,
+    destination: Optional[Path] = None,
+    rules_path: Optional[Path] = None,
 ) -> None:
     """Apply a specific rule to a specific transaction."""
     load_dotenv()
 
     try:
         # Find rules file
-        rules_file = _find_rules_file()
+        rules_file = _find_rules_file(destination, rules_path)
 
         # Load rules
         rule_loader = RuleLoader()
@@ -151,7 +162,10 @@ def rule_apply_command(
 
         if not dry_run:
             # Set up changelog
-            beancount_file = find_default_beancount_file()
+            if destination:
+                beancount_file = destination
+            else:
+                beancount_file = find_default_beancount_file()
             single_file = beancount_file.is_file()
             changelog_path = determine_changelog_path(beancount_file, single_file)
             changelog = ChangelogManager(changelog_path)
@@ -305,10 +319,24 @@ def _convert_transforms_to_yaml(transforms: Dict[str, Any]) -> List[Dict[str, An
     return yaml_transforms
 
 
-def _find_rules_file() -> Path:
-    """Find the rules file based on the current beancount file."""
+def _find_rules_file(
+    destination: Optional[Path] = None, rules_path: Optional[Path] = None
+) -> Path:
+    """Find the rules file based on the provided options or current beancount file."""
+    if rules_path:
+        if rules_path.is_dir():
+            # If given a directory, use rules.yaml in that directory
+            return rules_path / "rules.yaml"
+        else:
+            # If given a file, use that file directly
+            return rules_path
+
     try:
-        beancount_file = find_default_beancount_file()
+        if destination:
+            beancount_file = destination
+        else:
+            beancount_file = find_default_beancount_file()
+
         # Rules file has same name as beancount file but with .rules extension
         rules_file = beancount_file.with_suffix(".rules")
         return rules_file
