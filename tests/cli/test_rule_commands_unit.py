@@ -91,7 +91,7 @@ def test_rule_remove_command_marks_disabled(tmp_path, monkeypatch):
     )
 
     # Ensure _find_rules_file returns this file
-    monkeypatch.setattr(rc, "_find_rules_file", lambda: rules_path)
+    monkeypatch.setattr(rc, "_find_rules_file", lambda *args, **kwargs: rules_path)
 
     rc.rule_remove_command(3)
     data = yaml.safe_load(rules_path.read_text())
@@ -118,7 +118,7 @@ def test_rule_apply_command_dry_run_path(monkeypatch, tmp_path, capsys):
 
     real_loader = RealRuleLoader()
     monkeypatch.setattr(rc, "RuleLoader", lambda: real_loader)
-    monkeypatch.setattr(rc, "_find_rules_file", lambda: rules_path)
+    monkeypatch.setattr(rc, "_find_rules_file", lambda *args, **kwargs: rules_path)
 
     # Fake client with get_categories and get_transaction
     class DummyClient:

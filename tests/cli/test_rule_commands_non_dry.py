@@ -16,7 +16,7 @@ def test_rule_apply_command_non_dry(monkeypatch, tmp_path):
     )
 
     # Provide _find_rules_file to return our file
-    monkeypatch.setattr(rc, "_find_rules_file", lambda: rules_path)
+    monkeypatch.setattr(rc, "_find_rules_file", lambda *args, **kwargs: rules_path)
 
     # Real loader to parse YAML
     from src.rules.loader import RuleLoader as RealRuleLoader
