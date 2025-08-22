@@ -453,7 +453,7 @@ class TestCloneCommandHelp:
         assert "Download PocketSmith transactions" in result.stdout
         # The help text mentions the key options in the description
         assert "single" in result.stdout.lower()  # References single file mode
-        assert "DESTINATION" in result.stdout  # Shows the required argument
+        assert "LEDGER" in result.stdout  # Shows the required argument
 
     def test_clone_command_options_present(self):
         """Test that clone command has expected options configured."""
@@ -469,7 +469,7 @@ class TestCloneCommandHelp:
         sig = inspect.signature(main.clone)
         params = list(sig.parameters.keys())
 
-        assert "destination" in params
+        assert "ledger" in params
         assert "single_file" in params
         assert "from_date" in params
         assert "to_date" in params
