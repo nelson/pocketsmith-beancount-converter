@@ -133,4 +133,5 @@ def test_rule_apply_command_dry_run_path(monkeypatch, tmp_path, capsys):
     # Run dry run
     rc.rule_apply_command(5, "123", dry_run=True)
     out = capsys.readouterr().out
-    assert "Dry run - would apply rule 5" in out
+    assert "Would apply rule 5 to transaction 123" in out
+    assert "Dry run completed:" in out

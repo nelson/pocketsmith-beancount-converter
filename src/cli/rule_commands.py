@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import typer
 import yaml
@@ -28,13 +28,24 @@ def rule_add_command(
         preconditions = _parse_rule_params(if_params, "precondition")
         transforms = _parse_rule_params(then_params, "transform")
 
-        # Find rules file
-        rules_file = _find_rules_file(destination, rules_path)
+        # Determine rules path for loading
+        if rules_path:
+            if rules_path.is_dir():
+                # For add command with directory, create rules.yaml in the directory
+                rules_file = rules_path / "rules.yaml"
+            else:
+                rules_file = rules_path
+        else:
+            # Find rules file using the existing logic
+            rules_file = _find_rules_file(destination, rules_path)
 
         # Load existing rules to determine next ID
         rule_loader = RuleLoader()
-        result = rule_loader.load_rules(str(rules_file))
-        existing_rules = result.rules
+        try:
+            result = rule_loader.load_rules(str(rules_file))
+            existing_rules = result.rules
+        except Exception:
+            existing_rules = []
 
         # Find next available rule ID
         max_id = 0
@@ -74,8 +85,47 @@ def rule_add_command(
 def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None:
     """Remove a transaction processing rule by marking it as disabled."""
     try:
-        # Find rules file
-        rules_file = _find_rules_file(None, rules_path)
+        # Determine rules path for loading
+        if rules_path:
+            if rules_path.is_dir():
+                # For remove command with directory, we need to find which file contains the rule
+                # This is more complex, so let's load all rules first to find the right file
+                rule_loader = RuleLoader()
+                result = rule_loader.load_rules(str(rules_path))
+                if not result.is_successful:
+                    typer.echo(
+                        f"Rule loading failed with {len(result.errors)} errors:",
+                        err=True,
+                    )
+                    for error in result.errors:
+                        typer.echo(f"  • {error}", err=True)
+                    raise typer.Exit(1)
+
+                # Find which file contains this rule ID
+                rules_file = None
+                for yaml_file in rules_path.glob("*.yaml"):
+                    try:
+                        with open(yaml_file, "r") as f:
+                            rules_data = yaml.safe_load(f) or []
+                        for rule in rules_data:
+                            if rule.get("id") == rule_id:
+                                rules_file = yaml_file
+                                break
+                        if rules_file:
+                            break
+                    except Exception:
+                        continue
+
+                if not rules_file:
+                    typer.echo(
+                        f"Error: Rule {rule_id} not found in directory", err=True
+                    )
+                    raise typer.Exit(1)
+            else:
+                rules_file = rules_path
+        else:
+            # Find rules file using the existing logic
+            rules_file = _find_rules_file(None, rules_path)
 
         if not rules_file.exists():
             typer.echo(f"Error: Rules file not found: {rules_file}", err=True)
@@ -109,59 +159,112 @@ def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None
 
 
 def rule_apply_command(
-    rule_id: int,
-    transaction_id: str,
+    rule_id: Optional[int],
+    transaction_id: Optional[str],
     dry_run: bool = False,
     destination: Optional[Path] = None,
     rules_path: Optional[Path] = None,
 ) -> None:
-    """Apply a specific rule to a specific transaction."""
+    """Apply rules to transactions.
+
+    If rule_id is not provided, all rules will be eligible for evaluation.
+    If transaction_id is not provided, all transactions will be matched against eligible rules.
+    """
     load_dotenv()
 
     try:
-        # Find rules file
-        rules_file = _find_rules_file(destination, rules_path)
+        # Determine rules path for loading
+        if rules_path:
+            # Use the rules path directly (can be file or directory)
+            rules_load_path = rules_path
+        else:
+            # Find rules file using the existing logic
+            rules_load_path = _find_rules_file(destination, rules_path)
 
         # Load rules
         rule_loader = RuleLoader()
-        result = rule_loader.load_rules(str(rules_file))
-        rules = result.rules
+        result = rule_loader.load_rules(str(rules_load_path))
 
-        # Find the specific rule
-        target_rule = None
-        for rule in rules:
-            if rule.id == rule_id:
-                target_rule = rule
-                break
-
-        if target_rule is None:
-            typer.echo(f"Error: Rule {rule_id} not found", err=True)
+        if not result.is_successful:
+            typer.echo(
+                f"Rule loading failed with {len(result.errors)} errors:", err=True
+            )
+            for error in result.errors:
+                typer.echo(f"  • {error}", err=True)
             raise typer.Exit(1)
+
+        all_rules = result.rules
+
+        # Determine eligible rules
+        if rule_id is not None:
+            # Find the specific rule
+            eligible_rules = [rule for rule in all_rules if rule.id == rule_id]
+            if not eligible_rules:
+                typer.echo(f"Error: Rule {rule_id} not found", err=True)
+                raise typer.Exit(1)
+        else:
+            # All rules are eligible
+            eligible_rules = all_rules
 
         # Connect to PocketSmith API
         client = PocketSmithClient()
 
-        # Get the transaction
-        try:
-            transaction = client.get_transaction(int(transaction_id))
-        except Exception as e:
-            typer.echo(f"Error fetching transaction {transaction_id}: {e}", err=True)
-            raise typer.Exit(1)
+        # Get transactions
+        transactions = []
+        if transaction_id is not None:
+            # Get specific transaction
+            try:
+                transaction = client.get_transaction(int(transaction_id))
+                transactions = [transaction]
+            except Exception as e:
+                typer.echo(
+                    f"Error fetching transaction {transaction_id}: {e}", err=True
+                )
+                raise typer.Exit(1)
+        else:
+            # Get all transactions - use last sync info or reasonable defaults
+            try:
+                if destination:
+                    beancount_file = destination
+                else:
+                    beancount_file = find_default_beancount_file()
+                single_file = beancount_file.is_file()
+                changelog_path = determine_changelog_path(beancount_file, single_file)
+                temp_changelog = ChangelogManager(changelog_path)
 
-        # Check if rule matches transaction
-        matcher = RuleMatcher()
-        matcher.prepare_rules([target_rule])
+                # Try to get date range from last sync
+                last_sync_info = temp_changelog.get_last_sync_info()
+                if last_sync_info:
+                    _, from_date, to_date = last_sync_info
+                    transactions = client.get_transactions(
+                        start_date=from_date,
+                        end_date=to_date,
+                    )
+                else:
+                    # No sync info, get recent transactions (last 30 days)
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=30)
+                    transactions = client.get_transactions(
+                        start_date=start_date.isoformat(),
+                        end_date=end_date.isoformat(),
+                    )
+            except Exception as e:
+                typer.echo(f"Error fetching transactions: {e}", err=True)
+                raise typer.Exit(1)
 
-        match_result = matcher.find_matching_rule(transaction, [target_rule])
-
-        if match_result is None:
-            typer.echo(f"Rule {rule_id} does not match transaction {transaction_id}")
+        if not transactions:
+            typer.echo("No transactions to process")
             return
 
-        rule, matches = match_result
+        if not eligible_rules:
+            typer.echo("No rules to apply")
+            return
 
+        # Set up transformation infrastructure
+        categories = client.get_categories()
+
+        changelog: Optional[ChangelogManager] = None
         if not dry_run:
-            # Set up changelog
             if destination:
                 beancount_file = destination
             else:
@@ -170,75 +273,116 @@ def rule_apply_command(
             changelog_path = determine_changelog_path(beancount_file, single_file)
             changelog = ChangelogManager(changelog_path)
 
-            # Get categories for transformer
-            categories = client.get_categories()
+        transformer = RuleTransformer(categories, changelog)
+        matcher = RuleMatcher()
+        matcher.prepare_rules(eligible_rules)
 
-            # Apply the rule
-            transformer = RuleTransformer(categories, changelog)
-            applications = transformer.apply_transform(
-                transaction, rule.transform, rule.id, matches
-            )
+        # Apply rules to transactions
+        total_applications = 0
+        total_matches = 0
 
-            # Write back to PocketSmith
-            for app in applications:
-                if app.status.value == "SUCCESS" and not app.has_warning:
-                    try:
-                        client.update_transaction(transaction_id, transaction)
-                        break  # Success
-                    except Exception as e:
-                        typer.echo(
-                            f"Error updating transaction in PocketSmith: {e}", err=True
-                        )
+        for transaction in transactions:
+            # Find first matching rule for this transaction
+            match_result = matcher.find_matching_rule(transaction, eligible_rules)
 
-            # Log the application to changelog and terminal
-            # Prefer ChangelogManager APPLY entries; also allow transformer logging if available
-            for app in applications:
-                if app.status.value == "SUCCESS":
-                    # Write APPLY entry if supported by the changelog manager
-                    try:
-                        if hasattr(changelog, "write_apply_entry"):
-                            changelog.write_apply_entry(
-                                app.transaction_id,
-                                app.rule_id,
-                                app.field_name,
-                                str(app.new_value),
+            if match_result:
+                rule, matches = match_result
+                total_matches += 1
+
+                if dry_run:
+                    typer.echo(
+                        f"Would apply rule {rule.id} to transaction {transaction.get('id')}"
+                    )
+
+                    # Show what would change
+                    transaction_copy = transaction.copy()
+                    applications = transformer.apply_transform(
+                        transaction_copy, rule.transform, rule.id, matches
+                    )
+
+                    for app in applications:
+                        if app.status.value == "SUCCESS":
+                            timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[
+                                :-3
+                            ]
+                            typer.echo(
+                                f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
                             )
-                    except Exception:
-                        pass
-
-                    # Optional detailed logging via transformer (labels, overwrite), guarded
-                    try:
-                        if hasattr(transformer.changelog, "log_entry"):
-                            transformer.log_applications([app])
-                    except Exception:
-                        pass
-
-                    timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[:-3]
-                    typer.echo(
-                        f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
+                            total_applications += 1
+                else:
+                    # Apply the transformation
+                    applications = transformer.apply_transform(
+                        transaction, rule.transform, rule.id, matches
                     )
+
+                    # Write back to PocketSmith
+                    for app in applications:
+                        if app.status.value == "SUCCESS" and not app.has_warning:
+                            try:
+                                client.update_transaction(
+                                    str(transaction.get("id")), transaction
+                                )
+                                break  # Success
+                            except Exception as e:
+                                typer.echo(
+                                    f"Error updating transaction {transaction.get('id')} in PocketSmith: {e}",
+                                    err=True,
+                                )
+
+                    # Log successful applications
+                    for app in applications:
+                        if app.status.value == "SUCCESS":
+                            total_applications += 1
+
+                            # Write APPLY entry if supported by the changelog manager
+                            try:
+                                if changelog and hasattr(
+                                    changelog, "write_apply_entry"
+                                ):
+                                    changelog.write_apply_entry(
+                                        app.transaction_id,
+                                        app.rule_id,
+                                        app.field_name,
+                                        str(app.new_value),
+                                    )
+                            except Exception:
+                                pass
+
+                            # Optional detailed logging via transformer
+                            try:
+                                if transformer.changelog and hasattr(
+                                    transformer.changelog, "log_entry"
+                                ):
+                                    transformer.log_applications([app])
+                            except Exception:
+                                pass
+
+                            timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[
+                                :-3
+                            ]
+                            typer.echo(
+                                f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
+                            )
+
+        # Print summary
+        rules_desc = f"rule {rule_id}" if rule_id else f"{len(eligible_rules)} rules"
+        transactions_desc = (
+            f"transaction {transaction_id}"
+            if transaction_id
+            else f"{len(transactions)} transactions"
+        )
+
+        if dry_run:
+            typer.echo("\nDry run completed:")
         else:
-            # Dry run - just show what would happen
-            # Get categories for transformer but no changelog
-            categories = client.get_categories()
-            transformer = RuleTransformer(categories, None)
-            transaction_copy = transaction.copy()
-            applications = transformer.apply_transform(
-                transaction_copy, rule.transform, rule.id, matches
-            )
+            typer.echo("\nRule application completed:")
 
-            typer.echo(
-                f"Dry run - would apply rule {rule_id} to transaction {transaction_id}:"
-            )
-            for app in applications:
-                if app.status.value == "SUCCESS":
-                    timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[:-3]
-                    typer.echo(
-                        f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
-                    )
+        typer.echo(f"  Processed {rules_desc} against {transactions_desc}")
+        typer.echo(f"  Found {total_matches} matching transactions")
+        typer.echo(f"  Applied {total_applications} field transformations")
 
     except Exception as e:
-        typer.echo(f"Error applying rule: {e}", err=True)
+        typer.echo(f"Error applying rules: {e}", err=True)
         raise typer.Exit(1)
 
 
