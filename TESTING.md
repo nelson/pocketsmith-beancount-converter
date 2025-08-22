@@ -10,8 +10,57 @@
 
 Suggested checks:
 - Run `peabody help` to see subcommands listed (including push).
-- Run `peabody diff --id 123` to ensure ID targeting doesn’t error.
-- Run `peabody push -n` to confirm dry-run prints and doesn’t alter changelog.
+- Run `peabody diff --id 123` to ensure ID targeting doesn't error.
+- Run `peabody push -n` to confirm dry-run prints and doesn't alter changelog.
+
+## ➕ Phase 12: Enhanced Rule Command Testing
+
+Enhanced rule command functionality with new `list` and `lookup` subcommands plus modified `apply` behavior:
+
+### ✅ Rule Apply Modification Testing
+- **Modified behavior**: `rule apply` no longer writes back to remote PocketSmith data
+- **Local-only operation**: Verifies changes only affect local beancount ledger
+- **Resolution strategy compatibility**: Ensures write-back capability still works for pull/push commands
+
+### ✅ Rule List Command Testing  
+- **Summary mode**: Test rule counting by file and destination category
+- **Verbose mode**: Test detailed rule information display with conditions and transforms
+- **ID filtering**: Test range parsing (e.g., `1,3-5,7-8` → `[1,3,4,5,7,8]`)
+- **Rules path**: Test custom rules directory support (defaults to `.rules/`)
+- **Error handling**: Test missing files, invalid ID ranges, empty rule sets
+
+### ✅ Rule Lookup Command Testing
+- **Parameter validation**: Require at least one of `--merchant`, `--category`, `--account`
+- **Mock transaction matching**: Test rule matching against provided criteria
+- **Output formatting**: Test detailed match display with patterns and transforms
+- **No match scenarios**: Test behavior when no rules match given criteria
+- **Rule priority**: Test first-match semantics in priority order
+
+### 🎯 Testing Scenarios
+1. **Unit tests** for new command functions in `src/cli/rule_commands.py`:
+   - `test_rule_list_command()` - summary and verbose modes
+   - `test_rule_lookup_command()` - parameter validation and matching
+   - `test_parse_rule_ids()` - ID range parsing edge cases
+   - `test_rule_apply_no_writeback()` - verify no remote API calls
+
+2. **Integration tests** for CLI interface in `main.py`:
+   - Test `rule list` with various options and directory structures
+   - Test `rule lookup` with different parameter combinations
+   - Test error handling for invalid arguments
+
+3. **Manual testing scenarios**:
+   - List rules in multi-file directory structure
+   - Use verbose mode to inspect complex rule definitions
+   - Test ID filtering with edge cases (single IDs, ranges, combinations)
+   - Lookup rules with various merchant/category/account patterns
+   - Verify rule apply only modifies local files, not remote data
+
+### 📊 Expected Test Additions
+- **Target**: 25+ new tests for Phase 12 functionality
+- **Rule list**: 8+ tests covering summary/verbose modes and filtering
+- **Rule lookup**: 8+ tests covering parameter combinations and matching
+- **Rule apply**: 5+ tests verifying local-only behavior
+- **ID parsing**: 4+ tests covering range syntax edge cases
 
 ### 🎯 **Testing Mission Statement**
 Create comprehensive unit tests for all missing modules (beancount, changelog, compare, pocketsmith, resolve) to achieve 90%+ test coverage with robust property-based testing using Hypothesis.

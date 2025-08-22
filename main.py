@@ -465,6 +465,54 @@ def rule_apply(
     rule_apply_command(rule_id, transaction_id, dry_run, destination, rules)
 
 
+@rule_app.command("list")
+def rule_list(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Show detailed rule information"
+    ),
+    rule_id: Optional[str] = typer.Option(
+        None, "--id", help="Filter by rule ID(s) - supports ranges like '1,3-5,7'"
+    ),
+) -> None:
+    """List all rules found.
+
+    By default, shows a summary with rule counts by file and category.
+    Use --verbose to see full rule details.
+    """
+    from src.cli.rule_commands import rule_list_command
+
+    # Get rules from parent context
+    rules = ctx.obj.get("rules") if ctx.obj else None
+
+    rule_list_command(verbose, rule_id, rules)
+
+
+@rule_app.command("lookup")
+def rule_lookup(
+    ctx: typer.Context,
+    merchant: Optional[str] = typer.Option(
+        None, "--merchant", help="Transaction merchant/payee to match"
+    ),
+    category: Optional[str] = typer.Option(
+        None, "--category", help="Transaction category to match"
+    ),
+    account: Optional[str] = typer.Option(
+        None, "--account", help="Transaction account to match"
+    ),
+) -> None:
+    """Look up which rule would match given transaction data.
+
+    At least one of --merchant, --category, or --account must be provided.
+    """
+    from src.cli.rule_commands import rule_lookup_command
+
+    # Get rules from parent context
+    rules = ctx.obj.get("rules") if ctx.obj else None
+
+    rule_lookup_command(merchant, category, account, rules)
+
+
 def main() -> None:
     """Main entry point."""
     app()

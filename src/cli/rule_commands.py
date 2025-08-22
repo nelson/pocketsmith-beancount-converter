@@ -315,19 +315,8 @@ def rule_apply_command(
                         transaction, rule.transform, rule.id, matches
                     )
 
-                    # Write back to PocketSmith
-                    for app in applications:
-                        if app.status.value == "SUCCESS" and not app.has_warning:
-                            try:
-                                client.update_transaction(
-                                    str(transaction.get("id")), transaction
-                                )
-                                break  # Success
-                            except Exception as e:
-                                typer.echo(
-                                    f"Error updating transaction {transaction.get('id')} in PocketSmith: {e}",
-                                    err=True,
-                                )
+                    # Note: rule apply does not write back to remote PocketSmith data
+                    # Write back only happens during pull/push commands
 
                     # Log successful applications
                     for app in applications:
@@ -461,6 +450,320 @@ def _convert_transforms_to_yaml(transforms: Dict[str, Any]) -> List[Dict[str, An
             yaml_transforms.append({key: value})
 
     return yaml_transforms
+
+
+def rule_list_command(
+    verbose: bool = False,
+    rule_id: Optional[str] = None,
+    rules_path: Optional[Path] = None,
+) -> None:
+    """List all rules found."""
+    try:
+        # Determine rules path for loading
+        if rules_path:
+            rules_load_path = rules_path
+        else:
+            # Use default rules path
+            rules_load_path = Path(".rules/")
+
+        # Load rules
+        rule_loader = RuleLoader()
+        result = rule_loader.load_rules(str(rules_load_path))
+
+        if not result.is_successful:
+            typer.echo(
+                f"Rule loading failed with {len(result.errors)} errors:", err=True
+            )
+            for error in result.errors:
+                typer.echo(f"  • {error}", err=True)
+            raise typer.Exit(1)
+
+        all_rules = result.rules
+
+        # Parse rule ID filter if provided
+        if rule_id:
+            filtered_rule_ids = _parse_rule_ids(rule_id)
+            all_rules = [rule for rule in all_rules if rule.id in filtered_rule_ids]
+
+        if not all_rules:
+            if rule_id:
+                typer.echo(f"No rules found matching ID filter: {rule_id}")
+            else:
+                typer.echo("No rules found")
+            return
+
+        if verbose:
+            # Show detailed rule information
+            typer.echo("RULES:")
+            typer.echo()
+            for rule in all_rules:
+                typer.echo(f"RULE {rule.id}")
+
+                # Show conditions
+                if rule.precondition:
+                    typer.echo("  IF:")
+                    # RulePrecondition has direct fields
+                    if rule.precondition.account:
+                        typer.echo(f"    ACCOUNT: {rule.precondition.account}")
+                    if rule.precondition.category:
+                        typer.echo(f"    CATEGORY: {rule.precondition.category}")
+                    if rule.precondition.merchant:
+                        typer.echo(f"    MERCHANT: {rule.precondition.merchant}")
+                    if rule.precondition.metadata:
+                        typer.echo(f"    METADATA: {rule.precondition.metadata}")
+
+                # Show transforms
+                if rule.transform:
+                    typer.echo("  THEN:")
+                    # RuleTransform has direct fields, not a transforms list
+                    if rule.transform.category:
+                        typer.echo(f"    CATEGORY: {rule.transform.category}")
+                    if rule.transform.labels:
+                        typer.echo(f"    LABELS: {rule.transform.labels}")
+                    if rule.transform.memo:
+                        typer.echo(f"    MEMO: {rule.transform.memo}")
+                    if rule.transform.metadata:
+                        typer.echo(f"    METADATA: {rule.transform.metadata}")
+
+                typer.echo()
+        else:
+            # Show summary
+            typer.echo(f"Found {len(all_rules)} rules")
+
+            # Group by file if loading from directory
+            if rules_load_path and Path(rules_load_path).is_dir():
+                files_info = _group_rules_by_file(rules_load_path, all_rules)
+
+                typer.echo(f"Loaded from {len(files_info)} files:")
+                for file_name, rules in files_info.items():
+                    rule_ids = [rule.id for rule in rules]
+                    rule_id_ranges = _consolidate_id_ranges(rule_ids)
+                    typer.echo(
+                        f"  {file_name}: {len(rules)} rules (IDs: {rule_id_ranges})"
+                    )
+
+            # Group by destination category
+            category_counts: Dict[str, int] = {}
+            for rule in all_rules:
+                # Extract category from transform
+                category = "unknown"
+                if rule.transform and rule.transform.category:
+                    category = rule.transform.category
+
+                category_counts[category] = category_counts.get(category, 0) + 1
+
+            if category_counts:
+                typer.echo("\nRules by destination category:")
+                for category, count in sorted(category_counts.items()):
+                    typer.echo(f"  {category}: {count} rules")
+
+    except Exception as e:
+        typer.echo(f"Error listing rules: {e}", err=True)
+        raise typer.Exit(1)
+
+
+def rule_lookup_command(
+    merchant: Optional[str] = None,
+    category: Optional[str] = None,
+    account: Optional[str] = None,
+    rules_path: Optional[Path] = None,
+) -> None:
+    """Look up which rule would match given transaction data."""
+    try:
+        # Validate at least one parameter is provided
+        if not any([merchant, category, account]):
+            typer.echo(
+                "Error: At least one of --merchant, --category, or --account must be provided",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+        # Determine rules path for loading
+        if rules_path:
+            rules_load_path = rules_path
+        else:
+            # Use default rules path
+            rules_load_path = Path(".rules/")
+
+        # Load rules
+        rule_loader = RuleLoader()
+        result = rule_loader.load_rules(str(rules_load_path))
+
+        if not result.is_successful:
+            typer.echo(
+                f"Rule loading failed with {len(result.errors)} errors:", err=True
+            )
+            for error in result.errors:
+                typer.echo(f"  • {error}", err=True)
+            raise typer.Exit(1)
+
+        all_rules = result.rules
+
+        if not all_rules:
+            typer.echo("No rules found")
+            return
+
+        # Create a mock transaction for matching
+        mock_transaction = {}
+        if merchant:
+            mock_transaction["payee"] = merchant
+        if category:
+            mock_transaction["category"] = category
+        if account:
+            mock_transaction["account"] = account
+
+        # Use the rule matcher to find matching rule
+        matcher = RuleMatcher()
+        matcher.prepare_rules(all_rules)
+
+        match_result = matcher.find_matching_rule(mock_transaction, all_rules)
+
+        if match_result:
+            rule, matches = match_result
+
+            # Generate a mock transaction ID for display
+            transaction_id = "LOOKUP_001"
+
+            typer.echo(f"TRANSACTION {transaction_id} matches RULE {rule.id}")
+            typer.echo()
+
+            # Show matched conditions
+            for field_name, match_obj in matches.items():
+                # Get the pattern from the rule's precondition
+                if field_name == "merchant":
+                    pattern = rule.precondition.merchant
+                    value = merchant
+                elif field_name == "category":
+                    pattern = rule.precondition.category
+                    value = category
+                elif field_name == "account":
+                    pattern = rule.precondition.account
+                    value = account
+                else:
+                    pattern = "unknown"
+                    value = "unknown"
+
+                typer.echo(f"  {field_name.upper()} {value} ~= {pattern}")
+
+            typer.echo()
+
+            # Show transforms that would be applied
+            if rule.transform:
+                if rule.transform.category:
+                    old_value = category or "N/A"
+                    typer.echo(f"  CATEGORY {old_value} -> {rule.transform.category}")
+                if rule.transform.labels:
+                    typer.echo(f"  LABELS N/A -> {rule.transform.labels}")
+                if rule.transform.memo:
+                    typer.echo(f"  MEMO N/A -> {rule.transform.memo}")
+                if rule.transform.metadata:
+                    typer.echo("  METADATA")
+                    for key, val in rule.transform.metadata.items():
+                        typer.echo(f"    NEW {key}: {val}")
+        else:
+            typer.echo("No matching rule found for the given transaction data")
+
+    except Exception as e:
+        typer.echo(f"Error looking up rules: {e}", err=True)
+        raise typer.Exit(1)
+
+
+def _group_rules_by_file(
+    directory_path: Path, all_rules: List[Any]
+) -> Dict[str, List[Any]]:
+    """Group rules by their source file by re-loading individual files."""
+    from ..rules.loader import RuleLoader
+
+    files_info = {}
+    yaml_files = list(directory_path.glob("*.yaml")) + list(
+        directory_path.glob("*.yml")
+    )
+
+    # Create a mapping from rule ID to rule object for fast lookup
+    rule_map = {rule.id: rule for rule in all_rules}
+
+    for yaml_file in sorted(yaml_files):
+        # Load each file individually to get its rules
+        loader = RuleLoader()
+        result = loader.load_rules(yaml_file)
+
+        if result.is_successful:
+            file_name = yaml_file.name
+            file_rules = []
+
+            # Find the corresponding rule objects from the main list
+            for loaded_rule in result.rules:
+                if loaded_rule.id in rule_map:
+                    file_rules.append(rule_map[loaded_rule.id])
+
+            if file_rules:
+                files_info[file_name] = file_rules
+
+    return files_info
+
+
+def _consolidate_id_ranges(rule_ids: List[int]) -> str:
+    """Consolidate a list of rule IDs into range notation.
+
+    Example: [1,3,4,5,7,8,10] -> "1, 3-5, 7-8, 10"
+    """
+    if not rule_ids:
+        return ""
+
+    sorted_ids = sorted(set(rule_ids))
+    ranges = []
+    start = sorted_ids[0]
+    end = sorted_ids[0]
+
+    for i in range(1, len(sorted_ids)):
+        if sorted_ids[i] == end + 1:
+            # Consecutive number, extend range
+            end = sorted_ids[i]
+        else:
+            # Gap found, finalize current range
+            if start == end:
+                ranges.append(str(start))
+            else:
+                ranges.append(f"{start}-{end}")
+            start = end = sorted_ids[i]
+
+    # Add final range
+    if start == end:
+        ranges.append(str(start))
+    else:
+        ranges.append(f"{start}-{end}")
+
+    return ", ".join(ranges)
+
+
+def _parse_rule_ids(rule_id_string: str) -> List[int]:
+    """Parse rule ID string into list of integers.
+
+    Supports formats like: 1,3-5,7-8 -> [1,3,4,5,7,8]
+    """
+    result: List[int] = []
+
+    for part in rule_id_string.split(","):
+        part = part.strip()
+        if "-" in part:
+            # Handle range like "3-5"
+            start, end = part.split("-", 1)
+            try:
+                start_id = int(start.strip())
+                end_id = int(end.strip())
+                result.extend(range(start_id, end_id + 1))
+            except ValueError:
+                typer.echo(f"Error: Invalid rule ID range '{part}'", err=True)
+                raise typer.Exit(1)
+        else:
+            # Handle single ID
+            try:
+                result.append(int(part))
+            except ValueError:
+                typer.echo(f"Error: Invalid rule ID '{part}'", err=True)
+                raise typer.Exit(1)
+
+    return sorted(list(set(result)))  # Remove duplicates and sort
 
 
 def _find_rules_file(

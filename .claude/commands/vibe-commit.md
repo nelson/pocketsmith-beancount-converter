@@ -21,5 +21,7 @@ carefully, and follow them one by one, not skipping any steps.
      complete
   7. If PR checks are successful, rebase merge the branch. Switch back to
      master and pull the latest changes. Clean up the old branch. If PR checks
-     failed, fix them
+     failed, fix them. Limit to 3 fix attempts with code changes. If the PR
+     checks are pending, check again in 15 seconds. Limit to 4 status checks
+     per code change.
 
