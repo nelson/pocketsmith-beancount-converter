@@ -440,13 +440,22 @@ def rule_remove(
 @rule_app.command("apply")
 def rule_apply(
     ctx: typer.Context,
-    rule_id: int = typer.Argument(..., help="Rule ID to apply"),
-    transaction_id: str = typer.Argument(..., help="Transaction ID to apply rule to"),
+    rule_id: Optional[int] = typer.Argument(
+        None, help="Rule ID to apply (if not provided, all rules are eligible)"
+    ),
+    transaction_id: Optional[str] = typer.Argument(
+        None,
+        help="Transaction ID to apply rule to (if not provided, all transactions are processed)",
+    ),
     dry_run: bool = typer.Option(
         False, "-n", "--dry-run", help="Preview changes without applying them"
     ),
 ) -> None:
-    """Apply a specific rule to a specific transaction."""
+    """Apply rules to transactions.
+
+    If rule_id is not provided, all rules will be eligible for evaluation.
+    If transaction_id is not provided, all transactions will be matched against eligible rules.
+    """
     from src.cli.rule_commands import rule_apply_command
 
     # Get destination and rules from parent context
