@@ -19,7 +19,7 @@ from .file_handler import find_default_beancount_file, FileHandlerError
 def rule_add_command(
     if_params: List[str],
     then_params: List[str],
-    destination: Optional[Path] = None,
+    ledger: Optional[Path] = None,
     rules_path: Optional[Path] = None,
 ) -> None:
     """Add a new transaction processing rule."""
@@ -37,7 +37,7 @@ def rule_add_command(
                 rules_file = rules_path
         else:
             # Find rules file using the existing logic
-            rules_file = _find_rules_file(destination, rules_path)
+            rules_file = _find_rules_file(ledger, rules_path)
 
         # Load existing rules to determine next ID
         rule_loader = RuleLoader()
@@ -162,7 +162,7 @@ def rule_apply_command(
     rule_id: Optional[int],
     transaction_id: Optional[str],
     dry_run: bool = False,
-    destination: Optional[Path] = None,
+    ledger: Optional[Path] = None,
     rules_path: Optional[Path] = None,
 ) -> None:
     """Apply rules to transactions.
@@ -179,7 +179,7 @@ def rule_apply_command(
             rules_load_path = rules_path
         else:
             # Find rules file using the existing logic
-            rules_load_path = _find_rules_file(destination, rules_path)
+            rules_load_path = _find_rules_file(ledger, rules_path)
 
         # Load rules
         rule_loader = RuleLoader()
@@ -224,8 +224,8 @@ def rule_apply_command(
         else:
             # Get all transactions - use last sync info or reasonable defaults
             try:
-                if destination:
-                    beancount_file = destination
+                if ledger:
+                    beancount_file = ledger
                 else:
                     beancount_file = find_default_beancount_file()
                 single_file = beancount_file.is_file()
@@ -265,8 +265,8 @@ def rule_apply_command(
 
         changelog: Optional[ChangelogManager] = None
         if not dry_run:
-            if destination:
-                beancount_file = destination
+            if ledger:
+                beancount_file = ledger
             else:
                 beancount_file = find_default_beancount_file()
             single_file = beancount_file.is_file()
@@ -767,7 +767,7 @@ def _parse_rule_ids(rule_id_string: str) -> List[int]:
 
 
 def _find_rules_file(
-    destination: Optional[Path] = None, rules_path: Optional[Path] = None
+    ledger: Optional[Path] = None, rules_path: Optional[Path] = None
 ) -> Path:
     """Find the rules file based on the provided options or current beancount file."""
     if rules_path:
@@ -779,8 +779,8 @@ def _find_rules_file(
             return rules_path
 
     try:
-        if destination:
-            beancount_file = destination
+        if ledger:
+            beancount_file = ledger
         else:
             beancount_file = find_default_beancount_file()
 

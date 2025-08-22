@@ -360,7 +360,7 @@ class TestPullCommandHelp:
         assert result.exit_code == 0
         assert "Update local Beancount ledger" in result.stdout
         assert "updated_since" in result.stdout
-        assert "DESTINATION" in result.stdout
+        assert "LEDGER" in result.stdout
 
     def test_pull_command_options_present(self):
         """Test that pull command has expected options configured."""
@@ -371,7 +371,7 @@ class TestPullCommandHelp:
         sig = inspect.signature(main.pull)
         params = list(sig.parameters.keys())
 
-        assert "destination" in params
+        assert "ledger" in params
         assert "dry_run" in params
         assert "quiet" in params
         assert "from_date" in params
