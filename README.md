@@ -27,13 +27,16 @@ This project provides a comprehensive way to:
 - **Write-back support**: Update PocketSmith via REST API when local changes are detected
 - **Pagination**: Handles large datasets with automatic pagination
 
-### 📋 Transaction Rules (Phase 8 ✅)
+### 📋 Transaction Rules (Phase 8 ✅, Enhanced in Phase 12 ✅)
 - **YAML rule definitions**: Define rules with flexible if/then logic for automated processing
 - **Pattern matching**: Regex-based matching on account, category, and merchant fields  
 - **Smart transforms**: Automatic category assignment, label management, memo updates, and metadata enrichment
 - **Priority ordering**: Rules applied by ID with first-match semantics
 - **Interactive rule creation**: CLI tools for creating rules interactively or via command line
 - **Dry-run support**: Preview rule applications before making changes
+- **Rule listing**: View all rules with summary or detailed modes, filter by ID ranges
+- **Rule lookup**: Test which rule would match given transaction criteria
+- **Local-only application**: Rule apply works on local ledger only, no remote write-back
 
 ### 🗂️ File Organization  
 - **Proper formatting**: Uses correct commodity capitalization and account names
@@ -158,6 +161,53 @@ uv run python main.py diff --this-month output/
 # Compare last year
 uv run python main.py diff --last-year output/
 ```
+
+### Rule Commands (Phase 12 ✅)
+
+The modern rule command interface provides comprehensive rule management:
+
+```bash
+# Add a new rule
+uv run python main.py rule add --if merchant=Starbucks --then category="Expenses:Food:Coffee"
+
+# Remove (disable) a rule
+uv run python main.py rule rm 5
+
+# Apply rules to transactions (local only - no remote write-back)
+uv run python main.py rule apply
+
+# Apply specific rule to all transactions
+uv run python main.py rule apply 3
+
+# Apply all rules to specific transaction
+uv run python main.py rule apply --transaction-id 12345
+
+# Apply with dry-run to preview changes
+uv run python main.py rule apply --dry-run
+
+# List all rules (summary view)
+uv run python main.py rule list
+
+# List rules with detailed information
+uv run python main.py rule list --verbose
+
+# List specific rules by ID
+uv run python main.py rule list --id 1,3-5,8
+
+# List rules from custom directory
+uv run python main.py rule list --rules /path/to/rules/
+
+# Look up which rule would match given transaction data
+uv run python main.py rule lookup --merchant "Starbucks Coffee #123"
+
+# Look up with multiple criteria
+uv run python main.py rule lookup --merchant "Uber" --category "Transport"
+
+# Look up with account criteria
+uv run python main.py rule lookup --account "Assets:Checking"
+```
+
+**Important**: As of Phase 12, `rule apply` only modifies the local beancount ledger and does **not** write back to remote PocketSmith data. Write-back to PocketSmith only occurs during `pull` or `push` operations for explicit control over remote changes.
 
 ### Data Synchronization (Legacy)
 

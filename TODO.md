@@ -594,3 +594,43 @@ src/rules/              - Existing tests working (80%+ coverage)
 - [ ] **User acceptance testing** - Validate CLI workflows and user experience
 
 **Target: Production-ready CLI system with comprehensive documentation and testing**
+
+## ✅ Phase 12: Enhanced Rule Command Features (COMPLETED)
+
+### ✅ Rule Apply Behavior Modification (COMPLETED)
+- [x] **Remove remote write-back from rule apply** - Modified `rule_apply_command()` to prevent PocketSmith API writes ✅ COMPLETED
+- [x] **Preserve resolution strategy write-back** - Write-back capability maintained for pull/push commands ✅ COMPLETED
+- [x] **Update documentation** - README and spec clarify local-only rule apply behavior ✅ COMPLETED
+
+### ✅ Rule List Command Implementation (COMPLETED)
+- [x] **Summary mode** - Display rule counts by file and destination category ✅ COMPLETED
+- [x] **Verbose mode** - Show detailed rule information with conditions and transforms ✅ COMPLETED
+- [x] **ID filtering support** - Parse ID ranges like `1,3-5,7-8` into individual IDs ✅ COMPLETED
+- [x] **Rules path option** - Support custom rules directory (defaults to `.rules/`) ✅ COMPLETED
+- [x] **Error handling** - Graceful handling of missing files and invalid arguments ✅ COMPLETED
+
+### ✅ Rule Lookup Command Implementation (COMPLETED)  
+- [x] **Parameter validation** - Require at least one of merchant/category/account ✅ COMPLETED
+- [x] **Mock transaction matching** - Test rules against provided criteria ✅ COMPLETED
+- [x] **Detailed output formatting** - Show patterns matched and transforms applied ✅ COMPLETED
+- [x] **No match handling** - Clear messaging when no rules match criteria ✅ COMPLETED
+- [x] **Rule priority testing** - First-match semantics in priority order ✅ COMPLETED
+
+### ✅ CLI Integration (COMPLETED)
+- [x] **Add commands to main.py** - Integrated `rule list` and `rule lookup` with typer ✅ COMPLETED
+- [x] **Command help text** - Comprehensive help documentation for new commands ✅ COMPLETED
+- [x] **Parameter validation** - Proper argument validation and error messages ✅ COMPLETED
+- [x] **Context handling** - Proper rules path context passing ✅ COMPLETED
+
+### ✅ Documentation Updates (COMPLETED)
+- [x] **Create PHASE_12.md** - Complete specification with implementation details ✅ COMPLETED
+- [x] **Update README.md** - Add new rule commands section with examples ✅ COMPLETED
+- [x] **Update TESTING.md** - Add Phase 12 testing scenarios and requirements ✅ COMPLETED
+- [x] **Update TODO.md** - Track Phase 12 completion status ✅ COMPLETED
+
+### ✅ Utility Functions (COMPLETED)
+- [x] **ID range parsing** - `_parse_rule_ids()` function for complex ID patterns ✅ COMPLETED
+- [x] **Rule statistics** - Counting and categorization logic for summary display ✅ COMPLETED
+- [x] **Mock transaction creation** - Convert CLI parameters to transaction-like objects ✅ COMPLETED
+
+**✅ Phase 12 COMPLETED: Enhanced rule command interface with list, lookup, and local-only apply behavior**
