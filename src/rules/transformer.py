@@ -107,11 +107,12 @@ class RuleTransformer:
                 category_name, regex_matches
             )
 
-        old_category = (
-            transaction.get("category", {}).get("title", "Uncategorized")
-            if transaction.get("category")
-            else "Uncategorized"
-        )
+        # Categories are always strings in local beancount format (e.g., "Expenses:Test")
+        category_value = transaction.get("category")
+        if category_value:
+            old_category = str(category_value)
+        else:
+            old_category = "Uncategorized"
 
         # Handle special "Uncategorized" case
         if category_name.lower() == "uncategorized":
