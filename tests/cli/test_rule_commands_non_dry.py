@@ -28,32 +28,15 @@ def test_rule_apply_command_non_dry(monkeypatch, tmp_path):
         def get_categories(self) -> list[dict[str, Any]]:
             return []
 
-        def get_transactions(
-            self, start_date: str = None, end_date: str = None
-        ) -> list[dict[str, Any]]:
-            return [{"id": "999", "payee": "M", "labels": []}]
+        def get_transaction(self, tid: int) -> dict[str, Any]:
+            return {"id": tid, "payee": "M", "labels": []}
 
         def update_transaction(
             self, transaction_id: str, updates: dict[str, Any], dry_run: bool = False
         ) -> bool:
             return True
 
-    # Mock local beancount reading instead of PocketSmith API
-    def mock_read_transactions_for_rules(*args):
-        return [
-            {
-                "id": "999",
-                "payee": "M",
-                "labels": [],
-                "category": None,
-                "date": "2023-01-01",
-                "narration": "",
-            }
-        ]
-
-    monkeypatch.setattr(
-        rc, "_read_transactions_for_rules", mock_read_transactions_for_rules
-    )
+    monkeypatch.setattr(rc, "PocketSmithClient", lambda: DummyClient())
 
     # Avoid filesystem complexity in changelog path resolution
     monkeypatch.setattr(rc, "find_default_beancount_file", lambda: tmp_path)
@@ -65,10 +48,6 @@ def test_rule_apply_command_non_dry(monkeypatch, tmp_path):
     class DummyChangelog:
         def __init__(self, p: Path) -> None: ...
 
-        def get_last_sync_info(self):
-            # Return None to trigger default date range behavior
-            return None
-
     monkeypatch.setattr(rc, "ChangelogManager", DummyChangelog)
 
-    rc.rule_apply_command(ruleset=7, dry_run=False)
+    rc.rule_apply_command(7, "999", dry_run=False)
