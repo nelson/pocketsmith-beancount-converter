@@ -1,5 +1,0 @@
-- id: 1
-  if:
-    - merchant: "TEST"
-  then:
-    - category: "Expenses:Test"
