@@ -1,17 +1,28 @@
 """Rule management commands for the CLI."""
 
+import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, Tuple, Set
 from datetime import datetime, timedelta
 
 import typer
 import yaml
 from dotenv import load_dotenv
 
-from ..pocketsmith.common import PocketSmithClient
 from ..rules.loader import RuleLoader
 from ..rules.transformer import RuleTransformer
 from ..rules.matcher import RuleMatcher
+from ..beancount.read import read_ledger
+from beancount.core import data as bc_data
+from .date_options import DateOptions
+from .date_parser import (
+    expand_date_range,
+    get_this_month_range,
+    get_last_month_range,
+    get_this_year_range,
+    get_last_year_range,
+)
+from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
 from .file_handler import find_default_beancount_file, FileHandlerError
 
@@ -159,20 +170,36 @@ def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None
 
 
 def rule_apply_command(
-    rule_id: Optional[int],
-    transaction_id: Optional[str],
+    ruleset: Optional[str],
     dry_run: bool = False,
     ledger: Optional[Path] = None,
     rules_path: Optional[Path] = None,
+    date_options: Optional[DateOptions] = None,
+    ledgerset: Optional[str] = None,
+    verbose: bool = False,
+    experimental_continue: bool = False,
 ) -> None:
     """Apply rules to transactions.
 
-    If rule_id is not provided, all rules will be eligible for evaluation.
-    If transaction_id is not provided, all transactions will be matched against eligible rules.
+    If ruleset is not provided, all rules will be eligible for evaluation.
     """
     load_dotenv()
 
     try:
+        # Validate date options
+        if date_options:
+            try:
+                validate_date_options(
+                    date_options.from_date,
+                    date_options.to_date,
+                    date_options.this_month,
+                    date_options.last_month,
+                    date_options.this_year,
+                    date_options.last_year,
+                )
+            except ValidationError as e:
+                typer.echo(f"Error: {e}", err=True)
+                raise typer.Exit(1)
         # Determine rules path for loading
         if rules_path:
             # Use the rules path directly (can be file or directory)
@@ -196,61 +223,51 @@ def rule_apply_command(
         all_rules = result.rules
 
         # Determine eligible rules
-        if rule_id is not None:
-            # Find the specific rule
-            eligible_rules = [rule for rule in all_rules if rule.id == rule_id]
+        if ruleset is not None:
+            # Parse the ruleset to get specific rule IDs
+            try:
+                target_rule_ids = _parse_ruleset(ruleset, Path(rules_load_path))
+            except Exception as e:
+                typer.echo(f"Error parsing ruleset '{ruleset}': {e}", err=True)
+                raise typer.Exit(1)
+
+            # Find the specific rules
+            eligible_rules = [rule for rule in all_rules if rule.id in target_rule_ids]
+            found_rule_ids = {rule.id for rule in eligible_rules}
+            missing_rule_ids = set(target_rule_ids) - found_rule_ids
+
+            # For exact ID matches and YAML files, require all rules to be found
+            if missing_rule_ids and not ruleset.endswith("x"):
+                typer.echo(
+                    f"Error: Rules not found: {sorted(missing_rule_ids)}", err=True
+                )
+                raise typer.Exit(1)
+
             if not eligible_rules:
-                typer.echo(f"Error: Rule {rule_id} not found", err=True)
+                typer.echo(f"Error: No rules found for ruleset '{ruleset}'", err=True)
                 raise typer.Exit(1)
         else:
             # All rules are eligible
             eligible_rules = all_rules
 
-        # Connect to PocketSmith API
-        client = PocketSmithClient()
+        # Set up ledger path
+        try:
+            if ledger:
+                beancount_file = ledger
+            else:
+                beancount_file = find_default_beancount_file()
+        except Exception as e:
+            typer.echo(f"Error setting up ledger: {e}", err=True)
+            raise typer.Exit(1)
 
-        # Get transactions
-        transactions = []
-        if transaction_id is not None:
-            # Get specific transaction
-            try:
-                transaction = client.get_transaction(int(transaction_id))
-                transactions = [transaction]
-            except Exception as e:
-                typer.echo(
-                    f"Error fetching transaction {transaction_id}: {e}", err=True
-                )
-                raise typer.Exit(1)
-        else:
-            # Get all transactions - use last sync info or reasonable defaults
-            try:
-                if ledger:
-                    beancount_file = ledger
-                else:
-                    beancount_file = find_default_beancount_file()
-                single_file = beancount_file.is_file()
-                changelog_path = determine_changelog_path(beancount_file, single_file)
-                temp_changelog = ChangelogManager(changelog_path)
-
-                # Try to get date range from last sync
-                last_sync_info = temp_changelog.get_last_sync_info()
-                if last_sync_info:
-                    _, from_date, to_date = last_sync_info
-                    transactions = client.get_transactions(
-                        start_date=from_date,
-                        end_date=to_date,
-                    )
-                else:
-                    # No sync info, get recent transactions (last 30 days)
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=30)
-                    transactions = client.get_transactions(
-                        start_date=start_date.isoformat(),
-                        end_date=end_date.isoformat(),
-                    )
-            except Exception as e:
-                typer.echo(f"Error fetching transactions: {e}", err=True)
-                raise typer.Exit(1)
+        # Read transactions from local beancount files
+        try:
+            transactions = _read_transactions_for_rules(
+                beancount_file, date_options, ledgerset
+            )
+        except Exception as e:
+            typer.echo(f"Error reading transactions from ledger: {e}", err=True)
+            raise typer.Exit(1)
 
         if not transactions:
             typer.echo("No transactions to process")
@@ -260,15 +277,11 @@ def rule_apply_command(
             typer.echo("No rules to apply")
             return
 
-        # Set up transformation infrastructure
-        categories = client.get_categories()
+        # Set up transformation infrastructure - use empty categories since we're working with local data
+        categories: List[Dict[str, Any]] = []
 
         changelog: Optional[ChangelogManager] = None
         if not dry_run:
-            if ledger:
-                beancount_file = ledger
-            else:
-                beancount_file = find_default_beancount_file()
             single_file = beancount_file.is_file()
             changelog_path = determine_changelog_path(beancount_file, single_file)
             changelog = ChangelogManager(changelog_path)
@@ -288,6 +301,77 @@ def rule_apply_command(
             if match_result:
                 rule, matches = match_result
                 total_matches += 1
+
+                # Verbose output - show detailed matching results like rule lookup
+                if verbose:
+                    transaction_id = transaction.get("id", "UNKNOWN")
+                    typer.echo(f"TRANSACTION {transaction_id} matches RULE {rule.id}")
+                    typer.echo()
+
+                    # Show matched conditions
+                    for field_name, match_obj in matches.items():
+                        if field_name == "merchant":
+                            pattern = rule.precondition.merchant
+                            value = transaction.get("payee", "")
+                        elif field_name == "category":
+                            pattern = rule.precondition.category
+                            value = transaction.get("category", "")
+                        elif field_name == "account":
+                            pattern = rule.precondition.account
+                            value = transaction.get("account", "")
+                        else:
+                            pattern = "unknown"
+                            value = "unknown"
+
+                        typer.echo(f"  {field_name.upper()} {value} ~= {pattern}")
+
+                    typer.echo()
+
+                    # Show transforms that would be applied
+                    if rule.transform:
+                        if rule.transform.category:
+                            old_value = transaction.get("category", "N/A")
+                            typer.echo(
+                                f"  CATEGORY {old_value} -> {rule.transform.category}"
+                            )
+                        if rule.transform.labels:
+                            typer.echo(f"  LABELS N/A -> {rule.transform.labels}")
+                        if rule.transform.memo:
+                            typer.echo(f"  MEMO N/A -> {rule.transform.memo}")
+                        if rule.transform.metadata:
+                            typer.echo("  METADATA")
+                            for key, val in rule.transform.metadata.items():
+                                typer.echo(f"    NEW {key}: {val}")
+                    typer.echo()
+
+                # Experimental continue output - show all matching rules
+                if experimental_continue:
+                    transaction_id = transaction.get("id", "UNKNOWN")
+                    merchant = transaction.get("payee", "UNKNOWN")
+
+                    # Find all matching rules for this transaction (not just the first one)
+                    all_matches = []
+                    for potential_rule in eligible_rules:
+                        temp_result = matcher.find_matching_rule(
+                            transaction, [potential_rule]
+                        )
+                        if temp_result:
+                            rule_obj, _ = temp_result
+                            rule_merchant = (
+                                rule_obj.precondition.merchant
+                                if rule_obj.precondition
+                                and rule_obj.precondition.merchant
+                                else ""
+                            )
+                            all_matches.append((rule_obj.id, rule_merchant))
+
+                    if all_matches:
+                        typer.echo(
+                            f"TRANSACTION {transaction_id}: {merchant} matches RULES"
+                        )
+                        for rule_id, rule_merchant in all_matches:
+                            typer.echo(f"- {rule_id}: ~= {rule_merchant}")
+                        typer.echo()
 
                 if dry_run:
                     typer.echo(
@@ -354,12 +438,8 @@ def rule_apply_command(
                             )
 
         # Print summary
-        rules_desc = f"rule {rule_id}" if rule_id else f"{len(eligible_rules)} rules"
-        transactions_desc = (
-            f"transaction {transaction_id}"
-            if transaction_id
-            else f"{len(transactions)} transactions"
-        )
+        rules_desc = f"ruleset {ruleset}" if ruleset else f"{len(eligible_rules)} rules"
+        transactions_desc = f"{len(transactions)} transactions"
 
         if dry_run:
             typer.echo("\nDry run completed:")
@@ -764,6 +844,556 @@ def _parse_rule_ids(rule_id_string: str) -> List[int]:
                 raise typer.Exit(1)
 
     return sorted(list(set(result)))  # Remove duplicates and sort
+
+
+def _parse_ruleset(ruleset_string: Union[str, int], rules_path: Path) -> List[int]:
+    """Parse ruleset string into list of rule IDs.
+
+    Supports multiple formats:
+    1. Numeric IDs: 1,3-5,9-11 -> [1,3,4,5,9,10,11]
+    2. Wildcards: 1x -> [10-19], 3x -> [3000-3999], 25x -> [250-259]
+    3. YAML files: rules.yaml -> all rule IDs from that file
+    """
+
+    # Convert integer to string for backward compatibility
+    if isinstance(ruleset_string, int):
+        ruleset_string = str(ruleset_string)
+
+    # Check if it's a YAML file
+    if ruleset_string.endswith(".yaml"):
+        return _get_rule_ids_from_yaml_file(ruleset_string, rules_path)
+
+    # Check if it contains wildcard pattern (digit followed by x)
+    if "x" in ruleset_string:
+        return _parse_wildcard_rulesets(ruleset_string)
+
+    # Otherwise, use the existing numeric ID parsing
+    return _parse_rule_ids(ruleset_string)
+
+
+def _parse_wildcard_rulesets(ruleset_string: str) -> List[int]:
+    """Parse wildcard ruleset patterns.
+
+    Each 'x' represents exactly one digit (0-9).
+
+    Examples:
+    - 1x -> [10-19] (1 followed by 1 digit)
+    - 3x -> [30-39] (3 followed by 1 digit)
+    - 3xxx -> [3000-3999] (3 followed by 3 digits)
+    - 25x -> [250-259] (25 followed by 1 digit)
+    - 1xx -> [100-199] (1 followed by 2 digits)
+    - 1x,3xxx -> [10-19, 3000-3999] (combinations)
+    """
+    result: List[int] = []
+
+    for part in ruleset_string.split(","):
+        part = part.strip()
+
+        # Check for wildcard pattern: digits followed by one or more 'x'
+        wildcard_match = re.match(r"^(\d+)(x+)$", part)
+        if wildcard_match:
+            prefix = wildcard_match.group(1)
+            x_count = len(wildcard_match.group(2))  # Count of 'x' characters
+
+            # Calculate range based on number of x's:
+            # 1x -> 10-19 (1 followed by 1 digit)
+            # 3x -> 30-39 (3 followed by 1 digit)
+            # 3xxx -> 3000-3999 (3 followed by 3 digits)
+            # 25x -> 250-259 (25 followed by 1 digit)
+            # Each 'x' represents exactly one digit (0-9)
+
+            range_size = 10**x_count
+            start = int(prefix) * range_size
+            end = start + range_size - 1
+
+            result.extend(range(start, end + 1))
+        else:
+            # Fall back to regular ID parsing for non-wildcard parts
+            if "-" in part:
+                start, end_part = part.split("-", 1)
+                try:
+                    start_id = int(start.strip())
+                    end_id = int(end_part.strip())
+                    result.extend(range(start_id, end_id + 1))
+                except ValueError:
+                    typer.echo(f"Error: Invalid rule ID range '{part}'", err=True)
+                    raise typer.Exit(1)
+            else:
+                try:
+                    result.append(int(part))
+                except ValueError:
+                    typer.echo(f"Error: Invalid rule ID '{part}'", err=True)
+                    raise typer.Exit(1)
+
+    return sorted(list(set(result)))
+
+
+def _get_rule_ids_from_yaml_file(yaml_filename: str, rules_path: Path) -> List[int]:
+    """Get all rule IDs from a specific YAML file."""
+    yaml_file_path = rules_path / yaml_filename
+
+    if not yaml_file_path.exists():
+        typer.echo(
+            f"Error: Rule file '{yaml_filename}' not found in {rules_path}", err=True
+        )
+        raise typer.Exit(1)
+
+    # Load the specific YAML file to get its rule IDs
+    rule_loader = RuleLoader()
+    try:
+        result = rule_loader.load_rules(str(yaml_file_path))
+        if result.errors:
+            typer.echo(
+                f"Rule loading failed with {len(result.errors)} errors:", err=True
+            )
+            for error in result.errors:
+                typer.echo(f"  • {error}", err=True)
+            raise typer.Exit(1)
+
+        rule_ids = [rule.id for rule in result.rules]
+        if not rule_ids:
+            typer.echo(f"Warning: No rules found in file '{yaml_filename}'")
+
+        return sorted(rule_ids)
+
+    except Exception as e:
+        typer.echo(f"Error loading rules from '{yaml_filename}': {e}", err=True)
+        raise typer.Exit(1)
+
+
+def _read_transactions_for_rules(
+    beancount_path: Path, date_options: Optional[DateOptions], ledgerset: Optional[str]
+) -> List[Dict[str, Any]]:
+    """Read transactions from beancount files for rule processing.
+
+    Always reads the complete ledger for proper validation, then filters based on
+    ledgerset or date options.
+
+    Returns list of transaction dictionaries compatible with rule matcher.
+    """
+    single_file = beancount_path.is_file()
+
+    # Always read the complete ledger to avoid validation errors
+    all_transactions = _read_all_transactions(beancount_path, single_file)
+
+    if ledgerset:
+        # Try to get transaction IDs from specific ledgerset files
+        target_transaction_ids = _get_transaction_ids_from_ledgerset(
+            beancount_path, ledgerset
+        )
+
+        if target_transaction_ids:
+            # Filter complete ledger transactions to only those in the ledgerset
+            transactions = [
+                tx for tx in all_transactions if tx.get("id") in target_transaction_ids
+            ]
+            typer.echo(
+                f"Ledgerset '{ledgerset}' filtered to {len(transactions)} transactions"
+            )
+        else:
+            # Fall back to date-based filtering if no files found but pattern matches date ranges
+            date_ranges = _extract_date_ranges_from_ledgerset(ledgerset)
+            if date_ranges:
+                transactions = []
+                for transaction in all_transactions:
+                    transaction_date = _get_transaction_date(transaction)
+                    if transaction_date and _transaction_matches_date_ranges(
+                        transaction_date, date_ranges
+                    ):
+                        transactions.append(transaction)
+                typer.echo(
+                    f"Ledgerset '{ledgerset}' date-filtered to {len(transactions)} transactions"
+                )
+            else:
+                typer.echo(
+                    f"Warning: No transactions found for ledgerset '{ledgerset}'"
+                )
+                transactions = []
+    else:
+        transactions = all_transactions
+
+        if date_options:
+            # Apply date filtering
+            original_count = len(transactions)
+            transactions = _filter_transactions_by_date_options(
+                transactions, date_options
+            )
+            filtered_count = len(transactions)
+            typer.echo(
+                f"Date options filtered {original_count} transactions to {filtered_count}"
+            )
+        else:
+            typer.echo(f"Read {len(transactions)} transactions from ledger")
+
+    return transactions
+
+
+def _get_transaction_ids_from_ledgerset(
+    beancount_path: Path, ledgerset: str
+) -> Set[str]:
+    """Get transaction IDs from specific ledgerset files."""
+    transaction_ids = set()
+
+    # Resolve ledgerset path
+    if ledgerset.startswith("/"):
+        ledgerset_path = Path(ledgerset)
+    else:
+        ledgerset_path = beancount_path / ledgerset
+
+    # Check if it's a directory or file
+    if ledgerset_path.is_dir():
+        # Read all .beancount files in directory
+        for file_path in ledgerset_path.glob("*.beancount"):
+            transaction_ids.update(_get_transaction_ids_from_file(file_path))
+    elif ledgerset_path.is_file() or (
+        ledgerset_path.with_suffix(".beancount").is_file()
+    ):
+        # Read specific file (with or without .beancount extension)
+        if ledgerset_path.is_file():
+            transaction_ids.update(_get_transaction_ids_from_file(ledgerset_path))
+        else:
+            transaction_ids.update(
+                _get_transaction_ids_from_file(ledgerset_path.with_suffix(".beancount"))
+            )
+    else:
+        # Try to interpret as year/month pattern - use date filtering approach
+        date_ranges = _extract_date_ranges_from_ledgerset(ledgerset)
+        if date_ranges:
+            # This will be handled by date filtering on the complete ledger
+            typer.echo(
+                f"Warning: Pattern-based ledgerset '{ledgerset}' will use date filtering instead"
+            )
+        else:
+            typer.echo(f"Warning: Could not find ledgerset '{ledgerset}'")
+
+    return transaction_ids
+
+
+def _get_transaction_ids_from_file(file_path: Path) -> Set[str]:
+    """Extract transaction IDs from a beancount file without full validation."""
+    transaction_ids = set()
+
+    try:
+        # Use a simpler approach - read the file directly and extract IDs
+        with open(file_path, "r", encoding="utf-8") as f:
+            current_id = None
+            for line in f:
+                line = line.strip()
+                # Look for ID in metadata
+                if line.startswith("id:"):
+                    try:
+                        current_id = line.split(":", 1)[1].strip().strip("\"'")
+                        if current_id:
+                            transaction_ids.add(current_id)
+                    except (IndexError, ValueError):
+                        pass
+    except Exception as e:
+        typer.echo(
+            f"Warning: Could not read transaction IDs from {file_path}: {e}", err=True
+        )
+
+    return transaction_ids
+
+
+def _read_all_transactions(
+    beancount_path: Path, single_file: bool
+) -> List[Dict[str, Any]]:
+    """Read all transactions from the beancount ledger."""
+    transactions = []
+
+    if single_file:
+        # Read from single file
+        transactions = _read_transactions_from_file(beancount_path)
+    else:
+        # Read from main.beancount which includes all other files
+        main_file = beancount_path / "main.beancount"
+        if main_file.exists():
+            transactions = _read_transactions_from_file(main_file)
+        else:
+            # Fallback: read all .beancount files in directory
+            for file_path in beancount_path.glob("**/*.beancount"):
+                transactions.extend(_read_transactions_from_file(file_path))
+
+    return transactions
+
+
+def _read_transactions_from_file(file_path: Path) -> List[Dict[str, Any]]:
+    """Read transactions from a single beancount file and convert to rule-compatible format."""
+    try:
+        # Suppress both logger output and stderr for validation errors
+        import logging
+        import os
+        from contextlib import redirect_stderr
+
+        beancount_logger = logging.getLogger("src.beancount.read")
+        old_level = beancount_logger.level
+        beancount_logger.setLevel(logging.ERROR)
+
+        try:
+            # Also suppress stderr to catch beancount loader validation errors
+            with open(os.devnull, "w") as devnull:
+                with redirect_stderr(devnull):
+                    entries, _errors, _opts = read_ledger(str(file_path))
+        finally:
+            beancount_logger.setLevel(old_level)
+
+    except Exception as e:
+        typer.echo(f"Warning: Failed to read {file_path}: {e}", err=True)
+        return []
+
+    transactions = []
+    for entry in entries:
+        if isinstance(entry, bc_data.Transaction):
+            transaction = _convert_beancount_transaction_to_dict(entry)
+            if transaction:
+                transactions.append(transaction)
+
+    return transactions
+
+
+def _convert_beancount_transaction_to_dict(
+    entry: bc_data.Transaction,
+) -> Optional[Dict[str, Any]]:
+    """Convert a beancount Transaction to a dictionary compatible with rule matcher."""
+    meta = entry.meta or {}
+    tx_id = meta.get("id")
+    if tx_id is None:
+        return None
+
+    # Extract category from postings
+    category = None
+    for posting in entry.postings:
+        account = posting.account
+        if account.startswith(("Expenses:", "Income:")):
+            # Use account name as category for rule matching
+            category = account
+            break
+
+    # Build transaction dictionary
+    transaction = {
+        "id": str(tx_id),
+        "date": entry.date.strftime("%Y-%m-%d"),
+        "payee": entry.payee or "",
+        "category": category,
+        "labels": list(entry.tags) if entry.tags else [],
+        "narration": entry.narration or "",
+    }
+
+    return transaction
+
+
+def _filter_transactions_by_date_options(
+    transactions: List[Dict[str, Any]], date_options: DateOptions
+) -> List[Dict[str, Any]]:
+    """Filter transactions based on date options."""
+    # Convert date options to date range
+    start_str: Optional[str]
+    end_str: Optional[str]
+
+    if date_options.this_month:
+        start, end = get_this_month_range()
+        start_str, end_str = start.isoformat(), end.isoformat()
+    elif date_options.last_month:
+        start, end = get_last_month_range()
+        start_str, end_str = start.isoformat(), end.isoformat()
+    elif date_options.this_year:
+        start, end = get_this_year_range()
+        start_str, end_str = start.isoformat(), end.isoformat()
+    elif date_options.last_year:
+        start, end = get_last_year_range()
+        start_str, end_str = start.isoformat(), end.isoformat()
+    elif date_options.from_date or date_options.to_date:
+        start, end = expand_date_range(date_options.from_date, date_options.to_date)
+        start_str = start.isoformat() if start else None
+        end_str = end.isoformat() if end else None
+    else:
+        # No date filtering
+        return transactions
+
+    # Filter transactions
+    filtered_transactions = []
+    for transaction in transactions:
+        tx_date = transaction.get("date")
+        if tx_date:
+            if start_str and tx_date < start_str:
+                continue
+            if end_str and tx_date > end_str:
+                continue
+            filtered_transactions.append(transaction)
+
+    return filtered_transactions
+
+
+def _choose_date_range(
+    changelog: ChangelogManager,
+    date_options: Optional[DateOptions],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Determine date range from options or last sync info."""
+    if not date_options:
+        # No date options provided, use last sync info or reasonable defaults
+        last = changelog.get_last_sync_info()
+        if last:
+            _, from_date, to_date = last
+            return from_date, to_date
+        else:
+            # No sync info, get recent transactions (last 30 days)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+            return start_date.isoformat()[:10], end_date.isoformat()[:10]
+
+    if date_options.this_month:
+        start, end = get_this_month_range()
+        return start.isoformat(), end.isoformat()
+    if date_options.last_month:
+        start, end = get_last_month_range()
+        return start.isoformat(), end.isoformat()
+    if date_options.this_year:
+        start, end = get_this_year_range()
+        return start.isoformat(), end.isoformat()
+    if date_options.last_year:
+        start, end = get_last_year_range()
+        return start.isoformat(), end.isoformat()
+    if date_options.from_date or date_options.to_date:
+        start, end = expand_date_range(date_options.from_date, date_options.to_date)
+        return start.isoformat() if start else None, end.isoformat() if end else None
+
+    # No specific date options, use last sync info or reasonable defaults
+    last = changelog.get_last_sync_info()
+    if last:
+        _, from_date, to_date = last
+        return from_date, to_date
+    else:
+        # No sync info, get recent transactions (last 30 days)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        return start_date.isoformat()[:10], end_date.isoformat()[:10]
+
+
+def _filter_transactions_by_ledgerset(
+    transactions: List[Dict[str, Any]], ledgerset: str, ledger_base_path: Path
+) -> List[Dict[str, Any]]:
+    """Filter transactions to only those that would be written to the specified ledgerset file/directory.
+
+    Args:
+        transactions: List of transaction dictionaries
+        ledgerset: File or directory path relative to ledger (e.g., "2025/2025-08.beancount", "2025/")
+        ledger_base_path: Base ledger path
+
+    Returns:
+        Filtered list of transactions
+    """
+
+    # Extract date range from the ledgerset path
+    date_ranges = _extract_date_ranges_from_ledgerset(ledgerset)
+
+    if not date_ranges:
+        # If we can't determine date ranges, return all transactions
+        typer.echo(
+            f"Warning: Could not determine date range from ledgerset '{ledgerset}'"
+        )
+        return transactions
+
+    # Filter transactions based on their dates
+    filtered_transactions = []
+    for transaction in transactions:
+        transaction_date = _get_transaction_date(transaction)
+        if transaction_date and _transaction_matches_date_ranges(
+            transaction_date, date_ranges
+        ):
+            filtered_transactions.append(transaction)
+
+    return filtered_transactions
+
+
+def _extract_date_ranges_from_ledgerset(
+    ledgerset: str,
+) -> List[Tuple[datetime, datetime]]:
+    """Extract date ranges from ledgerset path.
+
+    Examples:
+        "2025/2025-08.beancount" -> [(2025-08-01, 2025-08-31)]
+        "2025/" -> [(2025-01-01, 2025-12-31)]
+        "2025/2025-08" -> [(2025-08-01, 2025-08-31)]
+    """
+    import re
+    from datetime import datetime, date
+    from calendar import monthrange
+
+    date_ranges = []
+
+    # Pattern for year/month file: 2025/2025-08.beancount or 2025/2025-08
+    year_month_pattern = r"(\d{4})/(\d{4})-(\d{2})(?:\.beancount)?$"
+    match = re.search(year_month_pattern, ledgerset)
+    if match:
+        dir_year, file_year, month = match.groups()
+        year = int(file_year)
+        month_num = int(month)
+
+        # Get first and last day of the month
+        first_day = date(year, month_num, 1)
+        last_day_num = monthrange(year, month_num)[1]
+        last_day = date(year, month_num, last_day_num)
+
+        start_datetime = datetime.combine(first_day, datetime.min.time())
+        end_datetime = datetime.combine(last_day, datetime.max.time())
+
+        date_ranges.append((start_datetime, end_datetime))
+        return date_ranges
+
+    # Pattern for year directory: 2025/ or 2025
+    year_pattern = r"(\d{4})/?$"
+    match = re.search(year_pattern, ledgerset)
+    if match:
+        year = int(match.group(1))
+
+        # Entire year range
+        start_datetime = datetime(year, 1, 1, 0, 0, 0)
+        end_datetime = datetime(year, 12, 31, 23, 59, 59)
+
+        date_ranges.append((start_datetime, end_datetime))
+        return date_ranges
+
+    return date_ranges
+
+
+def _get_transaction_date(transaction: Dict[str, Any]) -> Optional[datetime]:
+    """Extract datetime from a transaction."""
+    date_str = transaction.get("date")
+    if not date_str:
+        return None
+
+    try:
+        # Handle various date formats
+        if isinstance(date_str, str):
+            # Try ISO format first
+            if "T" in date_str:
+                return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            else:
+                # Try date-only format
+                from datetime import date
+
+                parsed_date = date.fromisoformat(date_str)
+                return datetime.combine(parsed_date, datetime.min.time())
+        elif hasattr(date_str, "year"):
+            # Already a datetime/date object
+            if hasattr(date_str, "hour"):
+                return date_str  # type: ignore[no-any-return]
+            else:
+                return datetime.combine(date_str, datetime.min.time())
+    except (ValueError, TypeError):
+        pass
+
+    return None
+
+
+def _transaction_matches_date_ranges(
+    transaction_date: datetime, date_ranges: List[Tuple[datetime, datetime]]
+) -> bool:
+    """Check if a transaction date falls within any of the given date ranges."""
+    for start_date, end_date in date_ranges:
+        if start_date <= transaction_date <= end_date:
+            return True
+    return False
 
 
 def _find_rules_file(

@@ -30,15 +30,32 @@ def test_rule_apply_writes_apply_entries_to_changelog(
         def get_categories(self) -> list[dict[str, Any]]:
             return []
 
-        def get_transaction(self, tid: int) -> dict[str, Any]:
-            return {"id": tid, "payee": "M", "labels": []}
+        def get_transactions(
+            self, start_date: str = None, end_date: str = None
+        ) -> list[dict[str, Any]]:
+            return [{"id": "999", "payee": "M", "labels": []}]
 
         def update_transaction(
             self, transaction_id: str, updates: dict[str, Any], dry_run: bool = False
         ) -> bool:
             return True
 
-    monkeypatch.setattr(rc, "PocketSmithClient", lambda: DummyClient())
+    # Mock local beancount reading instead of PocketSmith API
+    def mock_read_transactions_for_rules(*args):
+        return [
+            {
+                "id": "999",
+                "payee": "M",
+                "labels": [],
+                "category": None,
+                "date": "2023-01-01",
+                "narration": "",
+            }
+        ]
+
+    monkeypatch.setattr(
+        rc, "_read_transactions_for_rules", mock_read_transactions_for_rules
+    )
 
     # Make changelog path resolve to a real file using single-file mode
     ledger_path = tmp_path / "ledger.beancount"
@@ -46,7 +63,7 @@ def test_rule_apply_writes_apply_entries_to_changelog(
     monkeypatch.setattr(rc, "find_default_beancount_file", lambda: ledger_path)
 
     # Run the non-dry apply command
-    rc.rule_apply_command(42, "999", dry_run=False)
+    rc.rule_apply_command(ruleset=42, dry_run=False)
 
     # Real changelog file should be created at ledger.beancount.log
     changelog_path = ledger_path.with_suffix(".log")
