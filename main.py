@@ -400,6 +400,11 @@ def rule_main(
     ),
 ) -> None:
     """Manage transaction processing rules."""
+    # Load environment variables from .env file
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     if ctx.invoked_subcommand is None:
         # If no subcommand provided, show help
         typer.echo(ctx.get_help())
@@ -472,21 +477,68 @@ def rule_remove(
 @rule_app.command("apply")
 def rule_apply(
     ctx: typer.Context,
-    rule_id: Optional[int] = typer.Argument(
-        None, help="Rule ID to apply (if not provided, all rules are eligible)"
-    ),
-    transaction_id: Optional[str] = typer.Argument(
+    ruleset: Optional[str] = typer.Argument(
         None,
-        help="Transaction ID to apply rule to (if not provided, all transactions are processed)",
+        help="Rule set to apply: numeric IDs (1,3-5), wildcards (1x, 3xxx), or YAML file (rules.yaml)",
     ),
     dry_run: bool = typer.Option(
         False, "-n", "--dry-run", help="Preview changes without applying them"
     ),
+    from_date: Optional[str] = typer.Option(
+        None,
+        "--from",
+        help="Start date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+    ),
+    to_date: Optional[str] = typer.Option(
+        None,
+        "--to",
+        help="End date (YYYY-MM-DD, YYYYMMDD, YYYY-MM, or YYYY)",
+    ),
+    this_month: bool = typer.Option(
+        False,
+        "--this-month",
+        help="Process transactions from current calendar month",
+    ),
+    last_month: bool = typer.Option(
+        False,
+        "--last-month",
+        help="Process transactions from previous calendar month",
+    ),
+    this_year: bool = typer.Option(
+        False,
+        "--this-year",
+        help="Process transactions from current calendar year",
+    ),
+    last_year: bool = typer.Option(
+        False,
+        "--last-year",
+        help="Process transactions from previous calendar year",
+    ),
+    ledgerset: Optional[str] = typer.Option(
+        None,
+        "--ledgerset",
+        help="File or directory relative to ledger to limit transaction processing to",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="Show detailed matching results for each transaction",
+    ),
+    experimental_continue: bool = typer.Option(
+        False,
+        "--experimental-continue",
+        help="Show experimental transaction matching output format",
+    ),
 ) -> None:
     """Apply rules to transactions.
 
-    If rule_id is not provided, all rules will be eligible for evaluation.
-    If transaction_id is not provided, all transactions will be matched against eligible rules.
+    If ruleset is not provided, all rules will be eligible for evaluation.
+
+    Ruleset can be:
+    - Numeric IDs: 1,3-5,9-11 (individual IDs, ranges, or combinations)
+    - Wildcards: 1x (10-19), 3x (3000-3999), 25x (250-259)
+    - YAML files: rules.yaml (all rules from that file)
     """
     from src.cli.rule_commands import rule_apply_command
 
@@ -502,7 +554,28 @@ def rule_apply(
     if rules_source:
         typer.echo(f"Using rules: {rules} (from {rules_source})")
 
-    rule_apply_command(rule_id, transaction_id, dry_run, ledger, rules)
+    # Create DateOptions object
+    from src.cli.date_options import DateOptions
+
+    date_options = DateOptions(
+        from_date=from_date,
+        to_date=to_date,
+        this_month=this_month,
+        last_month=last_month,
+        this_year=this_year,
+        last_year=last_year,
+    )
+
+    rule_apply_command(
+        ruleset=ruleset,
+        dry_run=dry_run,
+        ledger=ledger,
+        rules_path=rules,
+        date_options=date_options,
+        ledgerset=ledgerset,
+        verbose=verbose,
+        experimental_continue=experimental_continue,
+    )
 
 
 @rule_app.command("list")

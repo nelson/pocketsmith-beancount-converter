@@ -120,18 +120,48 @@ def test_rule_apply_command_dry_run_path(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(rc, "RuleLoader", lambda: real_loader)
     monkeypatch.setattr(rc, "_find_rules_file", lambda *args, **kwargs: rules_path)
 
-    # Fake client with get_categories and get_transaction
+    # Fake client with get_categories and get_transactions
     class DummyClient:
         def get_categories(self) -> list[dict]:
             return [{"id": 1, "title": "Dining"}]
 
-        def get_transaction(self, tid: int) -> dict[str, object]:
-            return {"id": tid, "payee": "Test", "labels": []}
+        def get_transactions(
+            self, start_date: str = None, end_date: str = None
+        ) -> list[dict[str, object]]:
+            return [{"id": "123", "payee": "Test", "labels": []}]
 
-    monkeypatch.setattr(rc, "PocketSmithClient", lambda: DummyClient())
+    # Mock local beancount reading instead of PocketSmith API
+    def mock_read_transactions_for_rules(*args):
+        return [
+            {
+                "id": "123",
+                "payee": "Test",
+                "labels": [],
+                "category": None,
+                "date": "2023-01-01",
+                "narration": "",
+            }
+        ]
+
+    monkeypatch.setattr(
+        rc, "_read_transactions_for_rules", mock_read_transactions_for_rules
+    )
+
+    # Create a dummy changelog to handle the new date logic
+    class DummyChangelog:
+        def get_last_sync_info(self):
+            return None
+
+    monkeypatch.setattr(
+        rc, "find_default_beancount_file", lambda: tmp_path / "ledger.beancount"
+    )
+    monkeypatch.setattr(
+        rc, "determine_changelog_path", lambda base, single: tmp_path / "main.log"
+    )
+    monkeypatch.setattr(rc, "ChangelogManager", lambda path: DummyChangelog())
 
     # Run dry run
-    rc.rule_apply_command(5, "123", dry_run=True)
+    rc.rule_apply_command(ruleset=5, dry_run=True)
     out = capsys.readouterr().out
     assert "Would apply rule 5 to transaction 123" in out
     assert "Dry run completed:" in out
