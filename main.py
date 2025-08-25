@@ -3,6 +3,7 @@
 import typer
 from pathlib import Path
 from typing import Optional, List
+from dotenv import load_dotenv
 
 from src.cli.clone import clone_command
 from src.cli.pull import pull_command
@@ -102,6 +103,9 @@ def clone(
     If no ledger is provided, attempts to find a default beancount file
     in the current directory.
     """
+    # Load environment variables
+    load_dotenv()
+
     ledger_path, ledger_source = handle_default_ledger(ledger)
     if not quiet:
         typer.echo(f"Using ledger: {ledger_path} (from {ledger_source})")
@@ -175,6 +179,11 @@ def pull(
         help="Pull transactions from previous calendar year",
         hidden=True,
     ),
+    ledgerset: Optional[str] = typer.Option(
+        None,
+        "--ledgerset",
+        help="File or directory relative to ledger to limit transaction processing to",
+    ),
 ) -> None:
     """Update local Beancount ledger with recent PocketSmith data.
 
@@ -190,6 +199,9 @@ def pull(
     If no ledger is provided, attempts to find a default beancount file
     in the current directory.
     """
+    # Load environment variables
+    load_dotenv()
+
     ledger_path, ledger_source = handle_default_ledger(ledger)
     if not quiet:
         typer.echo(f"Using ledger: {ledger_path} (from {ledger_source})")
@@ -210,6 +222,7 @@ def pull(
         dry_run=dry_run,
         quiet=quiet,
         transaction_id=transaction_id,
+        ledgerset=ledgerset,
     )
 
 
@@ -273,6 +286,9 @@ def diff(
     If no ledger is provided, attempts to find a default beancount file
     in the current directory.
     """
+    # Load environment variables
+    load_dotenv()
+
     ledger_path, ledger_source = handle_default_ledger(ledger)
     typer.echo(f"Using ledger: {ledger_path} (from {ledger_source})")
 
@@ -345,8 +361,16 @@ def push(
         help="Push transactions from previous calendar year",
         hidden=True,
     ),
+    ledgerset: Optional[str] = typer.Option(
+        None,
+        "--ledgerset",
+        help="File or directory relative to ledger to limit transaction processing to",
+    ),
 ) -> None:
     """Upload local changes to PocketSmith."""
+    # Load environment variables
+    load_dotenv()
+
     ledger_path, ledger_source = handle_default_ledger(ledger)
     if not quiet:
         typer.echo(f"Using ledger: {ledger_path} (from {ledger_source})")
@@ -367,6 +391,7 @@ def push(
         quiet=quiet,
         transaction_id=transaction_id,
         date_options=date_options,
+        ledgerset=ledgerset,
     )
 
 
@@ -472,6 +497,44 @@ def rule_remove(
         typer.echo(f"Using rules: {rules} (from {rules_source})")
 
     rule_remove_command(rule_id, rules)
+
+
+@rule_app.command("disable")
+def rule_disable(
+    ctx: typer.Context,
+    rule_id: int = typer.Argument(..., help="Rule ID to disable"),
+) -> None:
+    """Disable a transaction processing rule by setting disabled: true."""
+    from src.cli.rule_commands import rule_disable_command
+
+    # Get rules from parent context
+    rules = ctx.obj.get("rules") if ctx.obj else None
+    rules_source = ctx.obj.get("rules_source") if ctx.obj else None
+
+    # Show config source
+    if rules_source:
+        typer.echo(f"Using rules: {rules} (from {rules_source})")
+
+    rule_disable_command(rule_id, rules)
+
+
+@rule_app.command("enable")
+def rule_enable(
+    ctx: typer.Context,
+    rule_id: int = typer.Argument(..., help="Rule ID to enable"),
+) -> None:
+    """Enable a transaction processing rule by removing the disabled key."""
+    from src.cli.rule_commands import rule_enable_command
+
+    # Get rules from parent context
+    rules = ctx.obj.get("rules") if ctx.obj else None
+    rules_source = ctx.obj.get("rules_source") if ctx.obj else None
+
+    # Show config source
+    if rules_source:
+        typer.echo(f"Using rules: {rules} (from {rules_source})")
+
+    rule_enable_command(rule_id, rules)
 
 
 @rule_app.command("apply")

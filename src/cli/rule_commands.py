@@ -24,7 +24,43 @@ from .date_parser import (
 )
 from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
-from .file_handler import find_default_beancount_file, FileHandlerError
+from .common import handle_default_ledger
+
+
+def _format_yaml_content(yaml_content: str) -> str:
+    """Format YAML content with inline labels and proper spacing between rules.
+
+    Based on the reference implementation from export_to_sheets.py format_all_yaml_files().
+    """
+
+    def replace_labels_with_indent(match: re.Match[str]) -> str:
+        indent = match.group(1)
+        labels_content = match.group(2)
+        # Extract individual label items
+        label_items = re.findall(r"^\s+-\s+(.+)$", labels_content, re.MULTILINE)
+        if label_items:
+            # Format as inline list
+            return f"{indent}labels: [{', '.join(label_items)}]\n"
+        else:
+            return f"{indent}labels: []\n"
+
+    # Replace multi-line labels with inline format
+    yaml_content = re.sub(
+        r"(\s+)labels:\s*\n((?:\s+-\s+.+\n)+)", replace_labels_with_indent, yaml_content
+    )
+
+    # Also handle empty labels that might be formatted as "labels: []" already
+    yaml_content = re.sub(r"(\s+)labels:\s*\[\s*\]", r"\1labels: []", yaml_content)
+
+    # Add empty lines between rules for readability
+    # Pattern matches the end of a rule (labels or metadata line) followed immediately by another rule (- id:)
+    yaml_content = re.sub(
+        r"(\n  - (?:labels|metadata): [^\n]*\n)(- id:)", r"\1\n\2", yaml_content
+    )
+    # Also handle when metadata is multi-line (last line of metadata block)
+    yaml_content = re.sub(r"(\n      - [^\n]*\n)(- id:)", r"\1\n\2", yaml_content)
+
+    return yaml_content
 
 
 def rule_add_command(
@@ -82,9 +118,16 @@ def rule_add_command(
 
         rules_data.append(new_rule_data)
 
-        # Write back to file
+        # Write back to file with formatting
         with open(rules_file, "w") as f:
-            yaml.dump(rules_data, f, default_flow_style=False, sort_keys=False)
+            yaml_content = yaml.dump(
+                rules_data,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            formatted_content = _format_yaml_content(yaml_content)
+            f.write(formatted_content)
 
         typer.echo(f"Added rule {next_id} to {rules_file}")
 
@@ -94,13 +137,95 @@ def rule_add_command(
 
 
 def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None:
-    """Remove a transaction processing rule by marking it as disabled."""
+    """Completely remove a transaction processing rule from the YAML file."""
     try:
         # Determine rules path for loading
         if rules_path:
             if rules_path.is_dir():
                 # For remove command with directory, we need to find which file contains the rule
                 # This is more complex, so let's load all rules first to find the right file
+                rule_loader = RuleLoader()
+                result = rule_loader.load_rules(str(rules_path))
+                if not result.is_successful:
+                    typer.echo(
+                        f"Rule loading failed with {len(result.errors)} errors:",
+                        err=True,
+                    )
+                    for error in result.errors:
+                        typer.echo(f"  • {error}", err=True)
+                    raise typer.Exit(1)
+
+                # Find which file contains this rule ID
+                rules_file = None
+                for yaml_file in rules_path.glob("*.yaml"):
+                    try:
+                        with open(yaml_file, "r") as f:
+                            rules_data = yaml.safe_load(f) or []
+                        for rule in rules_data:
+                            if rule.get("id") == rule_id:
+                                rules_file = yaml_file
+                                break
+                        if rules_file:
+                            break
+                    except Exception:
+                        continue
+
+                if not rules_file:
+                    typer.echo(
+                        f"Error: Rule {rule_id} not found in directory", err=True
+                    )
+                    raise typer.Exit(1)
+            else:
+                rules_file = rules_path
+        else:
+            # Find rules file using the existing logic
+            rules_file = _find_rules_file(None, rules_path)
+
+        if not rules_file.exists():
+            typer.echo(f"Error: Rules file not found: {rules_file}", err=True)
+            raise typer.Exit(1)
+
+        # Load rules
+        with open(rules_file, "r") as f:
+            rules_data = yaml.safe_load(f) or []
+
+        # Find and completely remove the rule
+        rule_found = False
+        original_count = len(rules_data)
+        rules_data = [rule for rule in rules_data if rule.get("id") != rule_id]
+
+        if len(rules_data) < original_count:
+            rule_found = True
+
+        if not rule_found:
+            typer.echo(f"Error: Rule {rule_id} not found", err=True)
+            raise typer.Exit(1)
+
+        # Write back to file with formatting
+        with open(rules_file, "w") as f:
+            yaml_content = yaml.dump(
+                rules_data,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            formatted_content = _format_yaml_content(yaml_content)
+            f.write(formatted_content)
+
+        typer.echo(f"Removed rule {rule_id}")
+
+    except Exception as e:
+        typer.echo(f"Error removing rule: {e}", err=True)
+        raise typer.Exit(1)
+
+
+def rule_disable_command(rule_id: int, rules_path: Optional[Path] = None) -> None:
+    """Disable a transaction processing rule by setting disabled: true."""
+    try:
+        # Determine rules path for loading
+        if rules_path:
+            if rules_path.is_dir():
+                # For disable command with directory, we need to find which file contains the rule
                 rule_loader = RuleLoader()
                 result = rule_loader.load_rules(str(rules_path))
                 if not result.is_successful:
@@ -158,14 +283,104 @@ def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None
             typer.echo(f"Error: Rule {rule_id} not found", err=True)
             raise typer.Exit(1)
 
-        # Write back to file
+        # Write back to file with formatting
         with open(rules_file, "w") as f:
-            yaml.dump(rules_data, f, default_flow_style=False, sort_keys=False)
+            yaml_content = yaml.dump(
+                rules_data,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            formatted_content = _format_yaml_content(yaml_content)
+            f.write(formatted_content)
 
         typer.echo(f"Disabled rule {rule_id}")
 
     except Exception as e:
-        typer.echo(f"Error removing rule: {e}", err=True)
+        typer.echo(f"Error disabling rule: {e}", err=True)
+        raise typer.Exit(1)
+
+
+def rule_enable_command(rule_id: int, rules_path: Optional[Path] = None) -> None:
+    """Enable a transaction processing rule by removing the disabled key."""
+    try:
+        # Determine rules path for loading
+        if rules_path:
+            if rules_path.is_dir():
+                # For enable command with directory, we need to find which file contains the rule
+                rule_loader = RuleLoader()
+                result = rule_loader.load_rules(str(rules_path))
+                if not result.is_successful:
+                    typer.echo(
+                        f"Rule loading failed with {len(result.errors)} errors:",
+                        err=True,
+                    )
+                    for error in result.errors:
+                        typer.echo(f"  • {error}", err=True)
+                    raise typer.Exit(1)
+
+                # Find which file contains this rule ID
+                rules_file = None
+                for yaml_file in rules_path.glob("*.yaml"):
+                    try:
+                        with open(yaml_file, "r") as f:
+                            rules_data = yaml.safe_load(f) or []
+                        for rule in rules_data:
+                            if rule.get("id") == rule_id:
+                                rules_file = yaml_file
+                                break
+                        if rules_file:
+                            break
+                    except Exception:
+                        continue
+
+                if not rules_file:
+                    typer.echo(
+                        f"Error: Rule {rule_id} not found in directory", err=True
+                    )
+                    raise typer.Exit(1)
+            else:
+                rules_file = rules_path
+        else:
+            # Find rules file using the existing logic
+            rules_file = _find_rules_file(None, rules_path)
+
+        if not rules_file.exists():
+            typer.echo(f"Error: Rules file not found: {rules_file}", err=True)
+            raise typer.Exit(1)
+
+        # Load rules
+        with open(rules_file, "r") as f:
+            rules_data = yaml.safe_load(f) or []
+
+        # Find and enable the rule by removing the disabled key
+        rule_found = False
+        for rule in rules_data:
+            if rule.get("id") == rule_id:
+                if "disabled" in rule:
+                    del rule["disabled"]
+                rule_found = True
+                break
+
+        if not rule_found:
+            typer.echo(f"Error: Rule {rule_id} not found", err=True)
+            raise typer.Exit(1)
+
+        # Write back to file with formatting
+        with open(rules_file, "w") as f:
+            yaml_content = yaml.dump(
+                rules_data,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+            formatted_content = _format_yaml_content(yaml_content)
+            f.write(formatted_content)
+
+        typer.echo(f"Enabled rule {rule_id}")
+
+    except Exception as e:
+        typer.echo(f"Error enabling rule: {e}", err=True)
         raise typer.Exit(1)
 
 
@@ -222,6 +437,9 @@ def rule_apply_command(
 
         all_rules = result.rules
 
+        # Filter out disabled rules - they should be ignored for all evaluation
+        all_rules = [rule for rule in all_rules if not getattr(rule, "disabled", False)]
+
         # Determine eligible rules
         if ruleset is not None:
             # Parse the ruleset to get specific rule IDs
@@ -250,12 +468,9 @@ def rule_apply_command(
             # All rules are eligible
             eligible_rules = all_rules
 
-        # Set up ledger path
+        # Set up ledger path using consistent resolution pattern
         try:
-            if ledger:
-                beancount_file = ledger
-            else:
-                beancount_file = find_default_beancount_file()
+            beancount_file, _ = handle_default_ledger(ledger)
         except Exception as e:
             typer.echo(f"Error setting up ledger: {e}", err=True)
             raise typer.Exit(1)
@@ -539,12 +754,13 @@ def rule_list_command(
 ) -> None:
     """List all rules found."""
     try:
-        # Determine rules path for loading
+        # Determine rules path for loading using consistent resolution pattern
         if rules_path:
             rules_load_path = rules_path
         else:
-            # Use default rules path
-            rules_load_path = Path(".rules/")
+            # Use consistent ledger resolution pattern for rules
+            ledger_path, _ = handle_default_ledger(None)
+            rules_load_path = _find_rules_file(ledger_path, rules_path)
 
         # Load rules
         rule_loader = RuleLoader()
@@ -577,7 +793,10 @@ def rule_list_command(
             typer.echo("RULES:")
             typer.echo()
             for rule in all_rules:
-                typer.echo(f"RULE {rule.id}")
+                disabled_status = (
+                    " (DISABLED)" if getattr(rule, "disabled", False) else ""
+                )
+                typer.echo(f"RULE {rule.id}{disabled_status}")
 
                 # Show conditions
                 if rule.precondition:
@@ -658,12 +877,13 @@ def rule_lookup_command(
             )
             raise typer.Exit(1)
 
-        # Determine rules path for loading
+        # Determine rules path for loading using consistent resolution pattern
         if rules_path:
             rules_load_path = rules_path
         else:
-            # Use default rules path
-            rules_load_path = Path(".rules/")
+            # Use consistent ledger resolution pattern for rules
+            ledger_path, _ = handle_default_ledger(None)
+            rules_load_path = _find_rules_file(ledger_path, rules_path)
 
         # Load rules
         rule_loader = RuleLoader()
@@ -678,6 +898,9 @@ def rule_lookup_command(
             raise typer.Exit(1)
 
         all_rules = result.rules
+
+        # Filter out disabled rules - they should be ignored for lookup
+        all_rules = [rule for rule in all_rules if not getattr(rule, "disabled", False)]
 
         if not all_rules:
             typer.echo("No rules found")
@@ -1399,7 +1622,7 @@ def _transaction_matches_date_ranges(
 def _find_rules_file(
     ledger: Optional[Path] = None, rules_path: Optional[Path] = None
 ) -> Path:
-    """Find the rules file based on the provided options or current beancount file."""
+    """Find the rules file based on the provided options using consistent resolution pattern."""
     if rules_path:
         if rules_path.is_dir():
             # If given a directory, use rules.yaml in that directory
@@ -1408,15 +1631,17 @@ def _find_rules_file(
             # If given a file, use that file directly
             return rules_path
 
-    try:
-        if ledger:
-            beancount_file = ledger
-        else:
-            beancount_file = find_default_beancount_file()
+    # Use consistent ledger resolution pattern
+    if ledger is None:
+        ledger_path, _ = handle_default_ledger(None)
+    else:
+        ledger_path = ledger
 
-        # Rules file has same name as beancount file but with .rules extension
-        rules_file = beancount_file.with_suffix(".rules")
-        return rules_file
-    except FileHandlerError:
-        # Fallback to rules.yaml in current directory
-        return Path("rules.yaml")
+    # Rules file has same name as ledger file but with .rules extension
+    if ledger_path.is_file() or ledger_path.suffix in [".beancount", ".bean"]:
+        rules_file = ledger_path.with_suffix(".rules")
+    else:
+        # For directory-based ledgers, use rules.yaml in the directory
+        rules_file = ledger_path / "rules.yaml"
+
+    return rules_file

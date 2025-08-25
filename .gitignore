@@ -22,3 +22,6 @@ ledger.beancount
 
 # Test coverage cache
 .coverage
+
+# macOS
+.DS_Store

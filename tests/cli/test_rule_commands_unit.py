@@ -45,23 +45,29 @@ def test_convert_preconditions_and_transforms_yaml():
 def test_find_rules_file_fallback_when_no_beancount(monkeypatch, tmp_path):
     # make cwd temp
     monkeypatch.chdir(tmp_path)
-    # Simulate FileHandlerError from find_default_beancount_file
+    # Clear environment variable that might override the default
+    monkeypatch.delenv("PEABODY_LEDGER", raising=False)
+    # Simulate FileHandlerError from find_default_beancount_file by patching the common module
+    from src.cli.file_handler import FileHandlerError
+
     monkeypatch.setattr(
-        rc,
-        "find_default_beancount_file",
-        lambda: (_ for _ in ()).throw(rc.FileHandlerError("no file")),
+        "src.cli.common.find_default_beancount_file",
+        lambda: (_ for _ in ()).throw(FileHandlerError("no file")),
     )
     path = rc._find_rules_file()
-    assert path == Path("rules.yaml")
+    assert path == Path(".ledger/rules.yaml")
 
 
 def test_rule_add_command_appends_yaml(tmp_path, monkeypatch):
     # Arrange rules file target via fallback
     monkeypatch.chdir(tmp_path)
+    # Clear environment variable that might override the default
+    monkeypatch.delenv("PEABODY_LEDGER", raising=False)
+    from src.cli.file_handler import FileHandlerError
+
     monkeypatch.setattr(
-        rc,
-        "find_default_beancount_file",
-        lambda: (_ for _ in ()).throw(rc.FileHandlerError("no file")),
+        "src.cli.common.find_default_beancount_file",
+        lambda: (_ for _ in ()).throw(FileHandlerError("no file")),
     )
 
     # Stub RuleLoader.load_rules to simulate existing rules
@@ -76,12 +82,12 @@ def test_rule_add_command_appends_yaml(tmp_path, monkeypatch):
     rc.rule_add_command(["merchant=Test"], ["category=Dining"])
 
     # Verify contents
-    data = yaml.safe_load(Path("rules.yaml").read_text())
+    data = yaml.safe_load(Path(".ledger/rules.yaml").read_text())
     assert isinstance(data, list)
     assert any(rule["id"] == 2 for rule in data)
 
 
-def test_rule_remove_command_marks_disabled(tmp_path, monkeypatch):
+def test_rule_remove_command_deletes_rule(tmp_path, monkeypatch):
     # Prepare a rules file
     monkeypatch.chdir(tmp_path)
     rules_path = tmp_path / "rules.yaml"
@@ -95,7 +101,7 @@ def test_rule_remove_command_marks_disabled(tmp_path, monkeypatch):
 
     rc.rule_remove_command(3)
     data = yaml.safe_load(rules_path.read_text())
-    assert data[0]["disabled"] is True
+    assert data == []  # Rule should be completely deleted
 
 
 def test_rule_apply_command_dry_run_path(monkeypatch, tmp_path, capsys):
@@ -153,7 +159,8 @@ def test_rule_apply_command_dry_run_path(monkeypatch, tmp_path, capsys):
             return None
 
     monkeypatch.setattr(
-        rc, "find_default_beancount_file", lambda: tmp_path / "ledger.beancount"
+        "src.cli.common.find_default_beancount_file",
+        lambda: tmp_path / "ledger.beancount",
     )
     monkeypatch.setattr(
         rc, "determine_changelog_path", lambda base, single: tmp_path / "main.log"
