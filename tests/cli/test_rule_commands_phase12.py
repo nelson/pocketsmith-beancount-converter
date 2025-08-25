@@ -525,18 +525,26 @@ class TestRuleCommandsIntegration:
     """Integration tests for rule commands."""
 
     def test_default_rules_path(self):
-        """Test that default rules path is .rules/ directory."""
+        """Test that default rules path is resolved relative to default ledger."""
         with patch("src.cli.rule_commands.RuleLoader") as mock_loader_class:
             mock_loader = MagicMock()
             mock_result = RuleLoadResult(rules=[], errors=[])
             mock_loader.load_rules.return_value = mock_result
             mock_loader_class.return_value = mock_loader
 
-            with patch("typer.echo"):
-                rc.rule_list_command(verbose=False, rule_id=None, rules_path=None)
+            # Mock the default ledger resolution to return a predictable path
+            test_ledger_path = Path("/test/ledger")
+            with patch(
+                "src.cli.rule_commands.handle_default_ledger"
+            ) as mock_handle_default:
+                mock_handle_default.return_value = (test_ledger_path, "test source")
 
-            # Should use default .rules/ path (Path gets converted to string)
-            mock_loader.load_rules.assert_called_once_with(".rules")
+                with patch("typer.echo"):
+                    rc.rule_list_command(verbose=False, rule_id=None, rules_path=None)
+
+                # Should use rules path derived from default ledger path
+                expected_rules_path = "/test/ledger/rules.yaml"
+                mock_loader.load_rules.assert_called_once_with(expected_rules_path)
 
     def test_custom_rules_path(self):
         """Test that custom rules path is used when provided."""

@@ -60,7 +60,13 @@ def test_rule_apply_writes_apply_entries_to_changelog(
     # Make changelog path resolve to a real file using single-file mode
     ledger_path = tmp_path / "ledger.beancount"
     ledger_path.write_text("; empty ledger", encoding="utf-8")
-    monkeypatch.setattr(rc, "find_default_beancount_file", lambda: ledger_path)
+    monkeypatch.setattr(
+        "src.cli.common.find_default_beancount_file", lambda: ledger_path
+    )
+    # Ensure handle_default_ledger returns the test ledger path
+    monkeypatch.setattr(
+        rc, "handle_default_ledger", lambda ledger: (ledger_path, "test source")
+    )
 
     # Run the non-dry apply command
     rc.rule_apply_command(ruleset=42, dry_run=False)

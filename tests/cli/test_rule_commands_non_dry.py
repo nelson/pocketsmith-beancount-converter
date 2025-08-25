@@ -56,7 +56,7 @@ def test_rule_apply_command_non_dry(monkeypatch, tmp_path):
     )
 
     # Avoid filesystem complexity in changelog path resolution
-    monkeypatch.setattr(rc, "find_default_beancount_file", lambda: tmp_path)
+    monkeypatch.setattr("src.cli.common.find_default_beancount_file", lambda: tmp_path)
     monkeypatch.setattr(
         rc, "determine_changelog_path", lambda base, single: tmp_path / "main.log"
     )

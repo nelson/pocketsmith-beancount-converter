@@ -19,7 +19,7 @@ from .date_parser import (
 from .validators import validate_date_options, ValidationError
 from .date_options import DateOptions
 from .changelog import ChangelogManager, determine_changelog_path
-from .file_handler import find_default_beancount_file, FileHandlerError
+from .common import handle_default_ledger
 
 # Import existing functionality
 from ..pocketsmith.common import PocketSmithClient
@@ -344,11 +344,11 @@ def diff_command(
             last_year,
         )
 
-        # Handle default destination
+        # Handle default destination using consistent resolution pattern
         if destination is None:
             try:
-                destination = find_default_beancount_file()
-            except FileHandlerError as e:
+                destination, _ = handle_default_ledger(None)
+            except Exception as e:
                 typer.echo(f"Error: {e}", err=True)
                 raise typer.Exit(1)
 

@@ -180,17 +180,17 @@ class TestDiffComparator:
 class TestDiffCommand:
     """Test the diff command."""
 
-    @patch("src.cli.diff.find_default_beancount_file")
+    @patch("src.cli.diff.handle_default_ledger")
     @patch("src.cli.diff.PocketSmithClient")
     @patch("src.cli.diff.read_local_transactions")
     def test_diff_default_file_detection(
-        self, mock_read_local, mock_client_class, mock_find_default
+        self, mock_read_local, mock_client_class, mock_handle_default
     ):
         """Test diff command with default file detection."""
         # Mock default file detection
         mock_destination = Mock(spec=Path)
         mock_destination.exists.return_value = True
-        mock_find_default.return_value = mock_destination
+        mock_handle_default.return_value = (mock_destination, "test source")
 
         # Mock empty local transactions
         mock_read_local.return_value = {}
@@ -221,7 +221,7 @@ class TestDiffCommand:
                     format="summary",
                 )
 
-                mock_find_default.assert_called_once()
+                mock_handle_default.assert_called_once_with(None)
 
     @patch("src.cli.diff.PocketSmithClient")
     @patch("src.cli.diff.read_local_transactions")
