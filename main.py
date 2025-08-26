@@ -593,11 +593,6 @@ def rule_apply(
         "--experimental-continue",
         help="Show experimental transaction matching output format",
     ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="Include disabled rules in evaluation",
-    ),
 ) -> None:
     """Apply rules to transactions.
 
@@ -643,7 +638,6 @@ def rule_apply(
         ledgerset=ledgerset,
         verbose=verbose,
         experimental_continue=experimental_continue,
-        force=force,
     )
 
 
