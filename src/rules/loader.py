@@ -22,15 +22,21 @@ class RuleLoader:
         """Initialize the rule loader."""
         self._loaded_rule_ids: Set[int] = set()
 
-    def load_rules(self, path: Union[str, Path]) -> RuleLoadResult:
+    def load_rules(
+        self, path: Union[str, Path], include_disabled: bool = False
+    ) -> RuleLoadResult:
         """Load rules from a file or directory.
 
         Args:
             path: Path to a YAML file or directory containing YAML files
+            include_disabled: If True, include disabled rules in the result
 
         Returns:
             RuleLoadResult with loaded rules and any validation errors
         """
+        # Clear loaded rule IDs for this loading session
+        self._loaded_rule_ids.clear()
+
         result = RuleLoadResult()
         path = Path(path)
 
@@ -45,9 +51,9 @@ class RuleLoader:
             return result
 
         if path.is_file():
-            self._load_file(path, result)
+            self._load_file(path, result, include_disabled)
         elif path.is_dir():
-            self._load_directory(path, result)
+            self._load_directory(path, result, include_disabled)
         else:
             result.add_error(
                 RuleValidationError(
@@ -63,7 +69,9 @@ class RuleLoader:
 
         return result
 
-    def _load_directory(self, directory: Path, result: RuleLoadResult) -> None:
+    def _load_directory(
+        self, directory: Path, result: RuleLoadResult, include_disabled: bool = False
+    ) -> None:
         """Load all YAML files from a directory."""
         yaml_files = list(directory.glob("*.yaml")) + list(directory.glob("*.yml"))
 
@@ -78,9 +86,11 @@ class RuleLoader:
             return
 
         for yaml_file in sorted(yaml_files):
-            self._load_file(yaml_file, result)
+            self._load_file(yaml_file, result, include_disabled)
 
-    def _load_file(self, file_path: Path, result: RuleLoadResult) -> None:
+    def _load_file(
+        self, file_path: Path, result: RuleLoadResult, include_disabled: bool = False
+    ) -> None:
         """Load rules from a single YAML file."""
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -124,7 +134,7 @@ class RuleLoader:
             result.files_processed += 1
 
             for i, rule_data in enumerate(yaml_data, 1):
-                self._load_rule(rule_data, result, str(file_path), i)
+                self._load_rule(rule_data, result, str(file_path), i, include_disabled)
 
         except (OSError, IOError) as e:
             result.add_error(
@@ -137,7 +147,12 @@ class RuleLoader:
             )
 
     def _load_rule(
-        self, rule_data: Any, result: RuleLoadResult, file_path: str, line_number: int
+        self,
+        rule_data: Any,
+        result: RuleLoadResult,
+        file_path: str,
+        line_number: int,
+        include_disabled: bool = False,
     ) -> None:
         """Load and validate a single rule from YAML data."""
         if not isinstance(rule_data, dict):
@@ -184,8 +199,8 @@ class RuleLoader:
         rule_id = rule_id_raw
 
         # Check if rule is disabled
-        if rule_data.get("disabled", False):
-            # Skip disabled rules - they are not loaded but don't cause errors
+        if rule_data.get("disabled", False) and not include_disabled:
+            # Skip disabled rules - they are not loaded but don't cause errors unless include_disabled is True
             return
 
         # Check for duplicate rule IDs
