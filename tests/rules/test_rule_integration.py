@@ -256,8 +256,9 @@ class TestRuleIntegration:
             )
 
             assert len(applications) == 1
-            assert applications[0].has_error
-            assert "not found in PocketSmith" in applications[0].error_message
+            # With empty categories list (local beancount mode), category transformation should succeed
+            assert not applications[0].has_error
+            assert applications[0].status.value == "SUCCESS"
 
         finally:
             Path(rules_file).unlink()
