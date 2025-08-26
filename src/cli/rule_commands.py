@@ -27,332 +27,6 @@ from .changelog import ChangelogManager, determine_changelog_path
 from .common import handle_default_ledger
 
 
-# ANSI color codes for terminal output
-class Colors:
-    APPLY = "\033[1;93m"  # Bold intense yellow
-    TRANSACTION = "\033[92m"  # Intense green
-    RULE = "\033[94m"  # Blue
-    CATEGORY = "\033[95m"  # Purple
-    LABELS = "\033[90m"  # Grey
-    UNDERLINE_CYAN = "\033[4;96m"  # Underline cyan
-    RESET = "\033[0m"  # Reset to default
-
-
-def _generate_unified_diff(
-    original_transaction: str,
-    modified_transaction: str,
-    ledger_file_path: Optional[str] = None,
-) -> str:
-    """Generate a unified diff showing the before and after of a transaction."""
-    import difflib
-    from datetime import datetime
-    import os
-
-    # Get timestamps
-    if ledger_file_path and os.path.exists(ledger_file_path):
-        old_mtime = datetime.fromtimestamp(os.path.getmtime(ledger_file_path))
-        old_timestamp = old_mtime.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " +1100"
-    else:
-        old_timestamp = "2024-06-25 09:06:55.852 +1100"  # Default fallback
-
-    new_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " +1100"
-
-    original_lines = original_transaction.splitlines(keepends=True)
-    modified_lines = modified_transaction.splitlines(keepends=True)
-
-    # Calculate line counts for the @@ header
-    old_count = len(original_lines)
-    new_count = len(modified_lines)
-
-    diff = difflib.unified_diff(
-        original_lines,
-        modified_lines,
-        fromfile=f"old {old_timestamp}",
-        tofile=f"new {new_timestamp}",
-        lineterm="",
-        n=3,  # Show 3 lines of context around changes
-    )
-
-    diff_lines = list(diff)
-
-    # Fix the formatting of the header lines
-    if len(diff_lines) >= 3:
-        # Ensure newlines after the --- and +++ lines
-        if len(diff_lines) >= 1 and diff_lines[0].startswith("---"):
-            diff_lines[0] = diff_lines[0].rstrip() + "\n"
-        if len(diff_lines) >= 2 and diff_lines[1].startswith("+++"):
-            diff_lines[1] = diff_lines[1].rstrip() + "\n"
-        # Fix the @@ line to show proper line counts
-        diff_lines[2] = f"@@ -1,{old_count} +1,{new_count} @@\n"
-
-    return "".join(diff_lines)
-
-
-def _format_transaction_text(
-    transaction: Dict[str, Any], modified_transaction: Optional[Dict[str, Any]] = None
-) -> str:
-    """Format a transaction as beancount text using actual beancount data."""
-    # Use modified transaction data if provided, otherwise use original
-    source_transaction = modified_transaction if modified_transaction else transaction
-
-    date_str = transaction.get("date", "")
-    payee = transaction.get("payee", "")
-    narration = source_transaction.get("narration", "")
-
-    # Get the transaction flag (usually '*' or '!')
-    flag = transaction.get("flag", "*")
-
-    # Build the transaction text with metadata
-    lines = []
-
-    # Add tags based on the source transaction
-    tags_str = ""
-    labels = source_transaction.get("labels", [])
-    if isinstance(labels, list) and labels:
-        # Sort labels alphabetically
-        sorted_labels = sorted(str(label) for label in labels)
-        tags_str = " #" + " #".join(sorted_labels)
-
-    # Transaction header - no extra indentation
-    lines.append(f'{date_str} {flag} "{payee}" "{narration}"{tags_str}')
-
-    # Metadata - proper indentation (4 spaces) - skip last_modified and closing_balance as requested
-    tx_id = transaction.get("id")
-    if tx_id:
-        lines.append(f"    id: {tx_id}")
-
-    # Use actual postings from the source transaction (original or modified)
-    postings = source_transaction.get("postings", [])
-    if postings:
-        for posting in postings:
-            account = posting.get("account", "")
-            amount = posting.get("amount", 0.0)
-            units = posting.get("units", "USD")
-
-            # Account comes from the source transaction (original or modified)
-            # No additional transformation needed here since modified_transaction already has updated postings
-
-            # Format the posting line
-            if amount >= 0:
-                lines.append(f"  {account}  {amount} {units}")
-            else:
-                lines.append(f"  {account}  {amount} {units}")
-    else:
-        # Fallback if no postings data available - this shouldn't happen with real beancount data
-        lines.append("  [Missing posting data]")
-
-    return "\n".join(lines)
-
-
-def _format_rule_yaml(rule: Any) -> str:
-    """Format a rule in YAML format for display."""
-    lines = []
-    lines.append("  if:")
-
-    if rule.precondition:
-        if rule.precondition.merchant:
-            lines.append(f"  - merchant: {rule.precondition.merchant}")
-        if rule.precondition.category:
-            lines.append(f"  - category: {rule.precondition.category}")
-        if rule.precondition.account:
-            lines.append(f"  - account: {rule.precondition.account}")
-        if rule.precondition.metadata:
-            for key, value in rule.precondition.metadata.items():
-                lines.append(f"  - {key}: {value}")
-
-    lines.append("  then:")
-
-    if rule.transform:
-        if rule.transform.category:
-            lines.append(f"  - category: {rule.transform.category}")
-        if rule.transform.labels:
-            labels_str = ", ".join(rule.transform.labels)
-            lines.append(f"  - labels: [{labels_str}]")
-        if rule.transform.memo:
-            lines.append(f"  - memo: {rule.transform.memo}")
-        if rule.transform.metadata:
-            for key, value in rule.transform.metadata.items():
-                lines.append(f"  - {key}: {value}")
-
-    return "\n".join(lines)
-
-
-def _print_rule_application_entry(
-    transaction: Dict[str, Any],
-    rule: Any,
-    applications: List[Any],
-    matcher: Any,
-    eligible_rules: List[Any],
-    experimental_continue: bool = False,
-    all_transactions: Optional[List[Dict[str, Any]]] = None,
-    ledger_file_path: Optional[str] = None,
-    force_show_diff: bool = False,
-) -> None:
-    """Print a single rule application entry in the new format."""
-    transaction_id = transaction.get("id", "UNKNOWN")
-
-    # 1. Separator line (40 characters)
-    print("=" * 40)
-
-    # 2. Summary line with colors
-    print(
-        f"{Colors.TRANSACTION}TRANSACTION{Colors.RESET} {Colors.UNDERLINE_CYAN}{transaction_id}{Colors.RESET} matches {Colors.RULE}RULE{Colors.RESET} {Colors.UNDERLINE_CYAN}{rule.id}{Colors.RESET}"
-    )
-    print()
-
-    # 3. Transaction display - either as diff (if changes) or plain text (if no changes)
-    has_successful_applications = force_show_diff or (
-        applications and any(app.status.value == "SUCCESS" for app in applications)
-    )
-
-    if has_successful_applications:
-        # Create modified transaction for diff with deep copy of postings
-        import copy
-
-        modified_transaction = copy.deepcopy(transaction)
-
-        # Apply all successful transformations
-        for app in applications:
-            if app.status.value == "SUCCESS":
-                if app.field_name.lower() == "category":
-                    modified_transaction["category"] = str(app.new_value)
-                    # Also update postings to reflect category change
-                    new_category = str(app.new_value)
-                    if "postings" in modified_transaction:
-                        updated_postings = []
-                        for posting in modified_transaction["postings"]:
-                            updated_posting = posting.copy()
-                            account = posting.get("account", "")
-                            # Update the expense/income posting with the new category
-                            if account.startswith(("Expenses:", "Income:")):
-                                if not new_category.startswith(
-                                    ("Expenses:", "Income:")
-                                ):
-                                    updated_posting["account"] = (
-                                        f"Expenses:{new_category}"
-                                    )
-                                else:
-                                    updated_posting["account"] = new_category
-                            updated_postings.append(updated_posting)
-                        modified_transaction["postings"] = updated_postings
-                elif app.field_name.lower() == "labels":
-                    # Handle labels correctly - merge new labels with existing ones
-                    existing_labels = transaction.get("labels", [])
-                    if not isinstance(existing_labels, list):
-                        existing_labels = []
-
-                    new_labels = app.new_value
-                    if isinstance(new_labels, list):
-                        # Merge existing labels with new ones, avoiding duplicates
-                        all_labels = existing_labels.copy()
-                        for label in new_labels:
-                            if str(label) not in all_labels:
-                                all_labels.append(str(label))
-                        # Sort labels alphabetically
-                        modified_transaction["labels"] = sorted(all_labels)
-                    else:
-                        # Single new label
-                        all_labels = existing_labels.copy()
-                        if str(new_labels) not in all_labels:
-                            all_labels.append(str(new_labels))
-                        # Sort labels alphabetically
-                        modified_transaction["labels"] = sorted(all_labels)
-                elif app.field_name.lower() == "memo":
-                    modified_transaction["narration"] = str(app.new_value)
-
-        # Generate and display diff
-        original_text = _format_transaction_text(transaction)
-        modified_text = _format_transaction_text(transaction, modified_transaction)
-
-        # Check if there are actual differences
-        if original_text.strip() == modified_text.strip():
-            # No actual differences in formatted text, show as single space indent
-            transaction_text = _format_transaction_text(transaction)
-            indented_lines = [" " + line for line in transaction_text.splitlines()]
-            print("\n".join(indented_lines))
-        else:
-            # There are differences, show as diff
-            diff = _generate_unified_diff(
-                original_text, modified_text, ledger_file_path
-            )
-            if diff.strip():  # Only print if diff is not empty
-                print(diff)
-            else:
-                # Fallback to showing transaction with indent if diff is empty
-                transaction_text = _format_transaction_text(transaction)
-                indented_lines = [" " + line for line in transaction_text.splitlines()]
-                print("\n".join(indented_lines))
-    else:
-        # Transaction matches but no changes - display with single space indent to align with diff
-        transaction_text = _format_transaction_text(transaction)
-        # Add single space indent to each line to align with diff output
-        indented_lines = [" " + line for line in transaction_text.splitlines()]
-        print("\n".join(indented_lines))
-
-    # Add newline between transaction and rule info for readability
-    print()
-
-    # 4. Rule printout with colors
-    print(
-        f"Matches {Colors.RULE}RULE{Colors.RESET} {Colors.UNDERLINE_CYAN}{rule.id}{Colors.RESET}:"
-    )
-    rule_yaml = _format_rule_yaml(rule)
-    print(rule_yaml)
-
-    # 5-6. Experimental continue features
-    if experimental_continue:
-        # 5. Other rules that match this transaction
-        other_matching_rules = []
-        for potential_rule in eligible_rules:
-            if potential_rule.id == rule.id:
-                continue  # Skip the already applied rule
-
-            temp_result = matcher.find_matching_rule(transaction, [potential_rule])
-            if temp_result:
-                matched_rule, _ = temp_result
-                other_matching_rules.append(matched_rule)
-
-        # Only print if there are other matching rules
-        if other_matching_rules:
-            print()
-            print("Other rules that match this transaction:")
-            for matched_rule in other_matching_rules:
-                merchant_pattern = ""
-                if matched_rule.precondition and matched_rule.precondition.merchant:
-                    merchant_pattern = matched_rule.precondition.merchant
-
-                payee = transaction.get("payee", "")
-                print(
-                    f"  {Colors.UNDERLINE_CYAN}{matched_rule.id}{Colors.RESET} MERCHANT {payee} ~= {merchant_pattern}"
-                )
-
-        # 6. Other transactions that match this rule
-        other_matching_transactions = []
-        if all_transactions:
-            for other_transaction in all_transactions:
-                if other_transaction.get("id") == transaction.get("id"):
-                    continue  # Skip the current transaction
-
-                temp_result = matcher.find_matching_rule(other_transaction, [rule])
-                if temp_result:
-                    other_matching_transactions.append(other_transaction)
-
-        # Only print if there are other matching transactions
-        if other_matching_transactions:
-            print()
-            print("Other transactions that match this rule:")
-            for other_transaction in other_matching_transactions:
-                payee = other_transaction.get("payee", "")
-                amount = other_transaction.get("amount", "0.00")
-                date = other_transaction.get("date", "")
-                tx_id = other_transaction.get("id", "")
-                print(
-                    f"  {Colors.UNDERLINE_CYAN}{tx_id}{Colors.RESET} {payee} {amount} USD {date}"
-                )
-
-    print()  # Final newline after each entry
-
-
 def _format_yaml_content(yaml_content: str) -> str:
     """Format YAML content with inline labels and proper spacing between rules.
 
@@ -719,12 +393,10 @@ def rule_apply_command(
     ledgerset: Optional[str] = None,
     verbose: bool = False,
     experimental_continue: bool = False,
-    force: bool = False,
 ) -> None:
     """Apply rules to transactions.
 
     If ruleset is not provided, all rules will be eligible for evaluation.
-    The --force flag allows disabled rules to be included in evaluation.
     """
     load_dotenv()
 
@@ -753,7 +425,7 @@ def rule_apply_command(
 
         # Load rules
         rule_loader = RuleLoader()
-        result = rule_loader.load_rules(str(rules_load_path), include_disabled=force)
+        result = rule_loader.load_rules(str(rules_load_path))
 
         if not result.is_successful:
             typer.echo(
@@ -765,7 +437,8 @@ def rule_apply_command(
 
         all_rules = result.rules
 
-        # No need to filter disabled rules here since the loader now handles this based on include_disabled parameter
+        # Filter out disabled rules - they should be ignored for all evaluation
+        all_rules = [rule for rule in all_rules if not getattr(rule, "disabled", False)]
 
         # Determine eligible rules
         if ruleset is not None:
@@ -832,7 +505,7 @@ def rule_apply_command(
         matcher = RuleMatcher()
         matcher.prepare_rules(eligible_rules)
 
-        # Apply rules to transactions with new output format
+        # Apply rules to transactions
         total_applications = 0
         total_matches = 0
 
@@ -844,47 +517,107 @@ def rule_apply_command(
                 rule, matches = match_result
                 total_matches += 1
 
-                # Apply the transformation to get the applications
+                # Verbose output - show detailed matching results like rule lookup
+                if verbose:
+                    transaction_id = transaction.get("id", "UNKNOWN")
+                    typer.echo(f"TRANSACTION {transaction_id} matches RULE {rule.id}")
+                    typer.echo()
+
+                    # Show matched conditions
+                    for field_name, match_obj in matches.items():
+                        if field_name == "merchant":
+                            pattern = rule.precondition.merchant
+                            value = transaction.get("payee", "")
+                        elif field_name == "category":
+                            pattern = rule.precondition.category
+                            value = transaction.get("category", "")
+                        elif field_name == "account":
+                            pattern = rule.precondition.account
+                            value = transaction.get("account", "")
+                        else:
+                            pattern = "unknown"
+                            value = "unknown"
+
+                        typer.echo(f"  {field_name.upper()} {value} ~= {pattern}")
+
+                    typer.echo()
+
+                    # Show transforms that would be applied
+                    if rule.transform:
+                        if rule.transform.category:
+                            old_value = transaction.get("category", "N/A")
+                            typer.echo(
+                                f"  CATEGORY {old_value} -> {rule.transform.category}"
+                            )
+                        if rule.transform.labels:
+                            typer.echo(f"  LABELS N/A -> {rule.transform.labels}")
+                        if rule.transform.memo:
+                            typer.echo(f"  MEMO N/A -> {rule.transform.memo}")
+                        if rule.transform.metadata:
+                            typer.echo("  METADATA")
+                            for key, val in rule.transform.metadata.items():
+                                typer.echo(f"    NEW {key}: {val}")
+                    typer.echo()
+
+                # Experimental continue output - show all matching rules
+                if experimental_continue:
+                    transaction_id = transaction.get("id", "UNKNOWN")
+                    merchant = transaction.get("payee", "UNKNOWN")
+
+                    # Find all matching rules for this transaction (not just the first one)
+                    all_matches = []
+                    for potential_rule in eligible_rules:
+                        temp_result = matcher.find_matching_rule(
+                            transaction, [potential_rule]
+                        )
+                        if temp_result:
+                            rule_obj, _ = temp_result
+                            rule_merchant = (
+                                rule_obj.precondition.merchant
+                                if rule_obj.precondition
+                                and rule_obj.precondition.merchant
+                                else ""
+                            )
+                            all_matches.append((rule_obj.id, rule_merchant))
+
+                    if all_matches:
+                        typer.echo(
+                            f"TRANSACTION {transaction_id}: {merchant} matches RULES"
+                        )
+                        for rule_id, rule_merchant in all_matches:
+                            typer.echo(f"- {rule_id}: ~= {rule_merchant}")
+                        typer.echo()
+
                 if dry_run:
-                    # For dry run, apply to a copy to see what would change
+                    typer.echo(
+                        f"Would apply rule {rule.id} to transaction {transaction.get('id')}"
+                    )
+
+                    # Show what would change
                     transaction_copy = transaction.copy()
                     applications = transformer.apply_transform(
                         transaction_copy, rule.transform, rule.id, matches
                     )
+
+                    for app in applications:
+                        if app.status.value == "SUCCESS":
+                            timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[
+                                :-3
+                            ]
+                            typer.echo(
+                                f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
+                            )
+                            total_applications += 1
                 else:
                     # Apply the transformation
                     applications = transformer.apply_transform(
                         transaction, rule.transform, rule.id, matches
                     )
 
-                # Check if there are successful modifications
-                has_modifications = bool(
-                    applications
-                    and any(app.status.value == "SUCCESS" for app in applications)
-                )
+                    # Note: rule apply does not write back to remote PocketSmith data
+                    # Write back only happens during pull/push commands
 
-                # Logic for when to show transactions:
-                # 1. If has modifications -> always show (either as diff or indented text)
-                # 2. If no modifications but experimental_continue -> show indented text
-                # 3. If no modifications and no experimental_continue -> skip
-                if not has_modifications and not experimental_continue:
-                    continue
-
-                # Use the new output format
-                _print_rule_application_entry(
-                    transaction,
-                    rule,
-                    applications,
-                    matcher,
-                    eligible_rules,
-                    experimental_continue,
-                    transactions,
-                    str(beancount_file),
-                    force_show_diff=has_modifications,
-                )
-
-                # Handle logging and applications for non-dry-run
-                if not dry_run and has_modifications:
+                    # Log successful applications
                     for app in applications:
                         if app.status.value == "SUCCESS":
                             total_applications += 1
@@ -912,28 +645,12 @@ def rule_apply_command(
                             except Exception:
                                 pass
 
-                # Count applications for dry run
-                if dry_run and has_modifications:
-                    for app in applications:
-                        if app.status.value == "SUCCESS":
-                            total_applications += 1
-
-                # Print final APPLY log line (as in the example)
-                if has_modifications:
-                    for app in applications:
-                        if app.status.value == "SUCCESS":
                             timestamp = datetime.now().strftime("%b %d %H:%M:%S.%f")[
                                 :-3
                             ]
-                            field_display = (
-                                str(app.new_value)
-                                if app.field_name != "labels"
-                                else str(app.new_value)
+                            typer.echo(
+                                f"[{timestamp}] APPLY {app.transaction_id} RULE {app.rule_id} {app.field_name} {app.new_value}"
                             )
-                            print(
-                                f"[{timestamp}] {Colors.APPLY}APPLY{Colors.RESET} {Colors.UNDERLINE_CYAN}{app.transaction_id}{Colors.RESET} {Colors.RULE}RULE{Colors.RESET} {Colors.UNDERLINE_CYAN}{app.rule_id}{Colors.RESET} {app.field_name.upper()} {field_display}"
-                            )
-                            print()  # Add blank line after each application
 
         # Print summary
         rules_desc = f"ruleset {ruleset}" if ruleset else f"{len(eligible_rules)} rules"
@@ -1675,19 +1392,7 @@ def _convert_beancount_transaction_to_dict(
             category = account
             break
 
-    # Convert postings to dictionary format
-    postings_data = []
-    for posting in entry.postings:
-        posting_dict = {
-            "account": posting.account,
-            "amount": float(posting.units.number)
-            if posting.units and posting.units.number is not None
-            else 0.0,
-            "units": posting.units.currency if posting.units else "USD",
-        }
-        postings_data.append(posting_dict)
-
-    # Build transaction dictionary with full beancount data preserved
+    # Build transaction dictionary
     transaction = {
         "id": str(tx_id),
         "date": entry.date.strftime("%Y-%m-%d"),
@@ -1695,11 +1400,6 @@ def _convert_beancount_transaction_to_dict(
         "category": category,
         "labels": list(entry.tags) if entry.tags else [],
         "narration": entry.narration or "",
-        "flag": entry.flag or "*",
-        "postings": postings_data,
-        # Optional metadata
-        "last_modified": meta.get("last_modified"),
-        "closing_balance": meta.get("closing_balance"),
     }
 
     return transaction

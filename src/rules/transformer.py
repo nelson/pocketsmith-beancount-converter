@@ -128,28 +128,22 @@ class RuleTransformer:
                 status=RuleApplicationStatus.SUCCESS,
             )
 
-        # Check if we're working with PocketSmith data (has category mapping) or local beancount data
-        if self._category_name_to_id:
-            # PocketSmith mode - look up category ID
-            category_id = self._category_name_to_id.get(category_name.lower())
+        # Look up category ID
+        category_id = self._category_name_to_id.get(category_name.lower())
 
-            if category_id is None:
-                return RuleApplication(
-                    rule_id=rule_id,
-                    transaction_id=transaction_id,
-                    field_name="CATEGORY",
-                    old_value=old_category,
-                    new_value=category_name,
-                    status=RuleApplicationStatus.INVALID,
-                    error_message=f"Category '{category_name}' not found in PocketSmith",
-                )
+        if category_id is None:
+            return RuleApplication(
+                rule_id=rule_id,
+                transaction_id=transaction_id,
+                field_name="CATEGORY",
+                old_value=old_category,
+                new_value=category_name,
+                status=RuleApplicationStatus.INVALID,
+                error_message=f"Category '{category_name}' not found in PocketSmith",
+            )
 
-            # Update transaction with new category (PocketSmith format)
-            transaction["category"] = {"id": category_id, "title": category_name}
-        else:
-            # Local beancount mode - accept any valid category string
-            # For beancount, categories are just strings like "Expenses:Shopping"
-            transaction["category"] = category_name
+        # Update transaction with new category
+        transaction["category"] = {"id": category_id, "title": category_name}
 
         return RuleApplication(
             rule_id=rule_id,
