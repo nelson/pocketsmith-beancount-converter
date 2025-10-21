@@ -485,15 +485,7 @@ def rule_add_command(
         rules_data.append(new_rule_data)
 
         # Write back to file with formatting
-        with open(rules_file, "w") as f:
-            yaml_content = yaml.dump(
-                rules_data,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
-            formatted_content = _format_yaml_content(yaml_content)
-            f.write(formatted_content)
+        _write_yaml_file(rules_file, rules_data)
 
         typer.echo(f"Added rule {next_id} to {rules_file}")
 
@@ -556,15 +548,7 @@ def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None
             raise typer.Exit(1)
 
         # Write back to file with formatting
-        with open(rules_file, "w") as f:
-            yaml_content = yaml.dump(
-                rules_data,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
-            formatted_content = _format_yaml_content(yaml_content)
-            f.write(formatted_content)
+        _write_yaml_file(rules_file, rules_data)
 
         typer.echo(f"Removed rule {rule_id}")
 
@@ -580,6 +564,7 @@ def rule_disable_command(rule_id: int, rules_path: Optional[Path] = None) -> Non
         if rules_path:
             if rules_path.is_dir():
                 # For disable command with directory, we need to find which file contains the rule
+                # Validate rules can be loaded first
                 rule_loader = RuleLoader()
                 result = rule_loader.load_rules(str(rules_path))
                 if not result.is_successful:
@@ -592,19 +577,7 @@ def rule_disable_command(rule_id: int, rules_path: Optional[Path] = None) -> Non
                     raise typer.Exit(1)
 
                 # Find which file contains this rule ID
-                rules_file = None
-                for yaml_file in rules_path.glob("*.yaml"):
-                    try:
-                        with open(yaml_file, "r") as f:
-                            rules_data = yaml.safe_load(f) or []
-                        for rule in rules_data:
-                            if rule.get("id") == rule_id:
-                                rules_file = yaml_file
-                                break
-                        if rules_file:
-                            break
-                    except Exception:
-                        continue
+                rules_file = _find_rule_file_in_directory(rules_path, rule_id)
 
                 if not rules_file:
                     typer.echo(
@@ -638,15 +611,7 @@ def rule_disable_command(rule_id: int, rules_path: Optional[Path] = None) -> Non
             raise typer.Exit(1)
 
         # Write back to file with formatting
-        with open(rules_file, "w") as f:
-            yaml_content = yaml.dump(
-                rules_data,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
-            formatted_content = _format_yaml_content(yaml_content)
-            f.write(formatted_content)
+        _write_yaml_file(rules_file, rules_data)
 
         typer.echo(f"Disabled rule {rule_id}")
 
@@ -674,19 +639,7 @@ def rule_enable_command(rule_id: int, rules_path: Optional[Path] = None) -> None
                     raise typer.Exit(1)
 
                 # Find which file contains this rule ID
-                rules_file = None
-                for yaml_file in rules_path.glob("*.yaml"):
-                    try:
-                        with open(yaml_file, "r") as f:
-                            rules_data = yaml.safe_load(f) or []
-                        for rule in rules_data:
-                            if rule.get("id") == rule_id:
-                                rules_file = yaml_file
-                                break
-                        if rules_file:
-                            break
-                    except Exception:
-                        continue
+                rules_file = _find_rule_file_in_directory(rules_path, rule_id)
 
                 if not rules_file:
                     typer.echo(
@@ -721,15 +674,7 @@ def rule_enable_command(rule_id: int, rules_path: Optional[Path] = None) -> None
             raise typer.Exit(1)
 
         # Write back to file with formatting
-        with open(rules_file, "w") as f:
-            yaml_content = yaml.dump(
-                rules_data,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
-            formatted_content = _format_yaml_content(yaml_content)
-            f.write(formatted_content)
+        _write_yaml_file(rules_file, rules_data)
 
         typer.echo(f"Enabled rule {rule_id}")
 
