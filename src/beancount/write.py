@@ -182,8 +182,16 @@ def generate_main_file_content(
     # Generate commodity declarations
     all_currencies = set()
     for account in transaction_accounts:
-        currency = account.get("currency_code", "USD").upper()
-        all_currencies.add(currency)
+        currency = account.get("currency_code")
+        if not currency:
+            import json
+
+            account_json = json.dumps(account, indent=2, default=str)
+            raise ValueError(
+                f"Account {account.get('id', 'unknown')} is missing currency_code.\n"
+                f"Account data:\n{account_json}"
+            )
+        all_currencies.add(currency.upper())
 
     commodity_declarations = []
     for currency in sorted(all_currencies):
@@ -263,12 +271,23 @@ def generate_balance_declarations(
     """Generate balance directive declarations."""
     balance_lines = []
 
-    # Create lookup for account names
+    # Create lookup for account names and currencies
     account_lookup = {}
+    account_currency = {}
     for account in transaction_accounts:
         account_id = str(account.get("id"))
         institution = account.get("institution", {}).get("title", "Unknown")
         account_name = account.get("name", "Unknown")
+        currency = account.get("currency_code")
+
+        if not currency:
+            import json
+
+            account_json = json.dumps(account, indent=2, default=str)
+            raise ValueError(
+                f"Account {account_id} is missing currency_code.\n"
+                f"Account data:\n{account_json}"
+            )
 
         from .common import sanitize_account_name
 
@@ -276,12 +295,19 @@ def generate_balance_declarations(
         sanitized_account = sanitize_account_name(account_name)
         full_account_name = f"Assets:{sanitized_institution}:{sanitized_account}"
         account_lookup[account_id] = full_account_name
+        account_currency[account_id] = currency.upper()
 
     # Generate balance directives
     for account_id, balances in account_balances.items():
         account_name = account_lookup.get(
             str(account_id), f"Assets:Unknown-Account-{account_id}"
         )
+        currency = account_currency.get(str(account_id))
+
+        if not currency:
+            raise ValueError(
+                f"Account {account_id} not found in transaction_accounts when generating balance directive"
+            )
 
         for balance_data in balances:
             balance_date = balance_data.get("date", "")
@@ -292,7 +318,7 @@ def generate_balance_declarations(
                 balance_date = balance_date.split("T")[0]
 
             balance_lines.append(
-                f"{balance_date} balance {account_name} {balance_amount} USD"
+                f"{balance_date} balance {account_name} {balance_amount} {currency}"
             )
 
     return balance_lines
@@ -357,10 +383,26 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
 
         # Handle postings - simplified for PocketSmith transactions
         amount = Decimal(str(transaction.get("amount", 0)))
-        currency = transaction.get("currency_code", "USD").upper()
 
         # Get account information
         transaction_account = transaction.get("transaction_account", {})
+
+        # Currency - use transaction currency_code, fall back to account currency_code
+        currency = transaction.get("currency_code") or transaction_account.get(
+            "currency_code"
+        )
+
+        if not currency:
+            # No currency found - raise error with transaction details
+            import json
+
+            transaction_json = json.dumps(transaction, indent=2, default=str)
+            raise ValueError(
+                f"Transaction {transaction.get('id', 'unknown')} is missing currency_code.\n"
+                f"Transaction data:\n{transaction_json}"
+            )
+
+        currency = currency.upper()
         account_name = get_account_name_from_transaction_account(transaction_account)
 
         # Get category
@@ -400,7 +442,16 @@ def generate_account_declarations(
             account_id = account.get("id")
 
             # Use base currency from transaction account
-            currency = account.get("currency_code", "USD").upper()
+            currency = account.get("currency_code")
+            if not currency:
+                import json
+
+                account_json = json.dumps(account, indent=2, default=str)
+                raise ValueError(
+                    f"Account {account_id} is missing currency_code.\n"
+                    f"Account data:\n{account_json}"
+                )
+            currency = currency.upper()
 
             # Use starting_balance_date as account open date
             open_date = account.get("starting_balance_date")

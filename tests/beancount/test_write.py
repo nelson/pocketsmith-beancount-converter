@@ -140,7 +140,11 @@ class TestWriteHierarchicalLedger:
                 "payee": "Test Merchant",
                 "amount": "-50.00",
                 "currency_code": "USD",
-                "transaction_account": {"id": "1", "name": "Checking"},
+                "transaction_account": {
+                    "id": "1",
+                    "name": "Checking",
+                    "currency_code": "USD",
+                },
             },
             {
                 "id": "124",
@@ -148,12 +152,21 @@ class TestWriteHierarchicalLedger:
                 "payee": "Another Merchant",
                 "amount": "-25.00",
                 "currency_code": "USD",
-                "transaction_account": {"id": "1", "name": "Checking"},
+                "transaction_account": {
+                    "id": "1",
+                    "name": "Checking",
+                    "currency_code": "USD",
+                },
             },
         ]
 
         transaction_accounts = [
-            {"id": "1", "name": "Checking", "institution": {"title": "Test Bank"}}
+            {
+                "id": "1",
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
         ]
 
         categories = [{"id": "1", "title": "Food & Dining"}]
@@ -196,7 +209,12 @@ class TestWriteHierarchicalLedger:
         """Test writing hierarchical ledger with account balances."""
         transactions = []
         transaction_accounts = [
-            {"id": "1", "name": "Checking", "institution": {"title": "Test Bank"}}
+            {
+                "id": "1",
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
         ]
         categories = []
         account_balances = {
@@ -233,7 +251,11 @@ class TestGenerateTransactionsContent:
                 "amount": "-50.00",
                 "currency_code": "USD",
                 "memo": "Test transaction",
-                "transaction_account": {"id": "1", "name": "Checking"},
+                "transaction_account": {
+                    "id": "1",
+                    "name": "Checking",
+                    "currency_code": "USD",
+                },
                 "category": {"id": "1", "title": "Food"},
             }
         ]
@@ -328,7 +350,12 @@ class TestGenerateMainFileContent:
         """Test generating basic main file content."""
         year_months = [(2024, 1), (2024, 2)]
         transaction_accounts = [
-            {"id": "1", "name": "Checking", "institution": {"title": "Test Bank"}}
+            {
+                "id": "1",
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
         ]
         categories = [{"id": "1", "title": "Food & Dining"}]
 
@@ -346,7 +373,12 @@ class TestGenerateMainFileContent:
         """Test generating main file content with account balances."""
         year_months = []
         transaction_accounts = [
-            {"id": "1", "name": "Checking", "institution": {"title": "Test Bank"}}
+            {
+                "id": "1",
+                "name": "Checking",
+                "institution": {"title": "Test Bank"},
+                "currency_code": "USD",
+            }
         ]
         categories = []
         account_balances = {
