@@ -15,16 +15,10 @@ from ..rules.matcher import RuleMatcher
 from ..beancount.read import read_ledger
 from beancount.core import data as bc_data
 from .date_options import DateOptions
-from .date_parser import (
-    expand_date_range,
-    get_this_month_range,
-    get_last_month_range,
-    get_this_year_range,
-    get_last_year_range,
-)
 from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
 from .common import handle_default_ledger
+from .shared_utils import choose_date_range
 
 
 # ANSI color codes for terminal output
@@ -36,6 +30,46 @@ class Colors:
     LABELS = "\033[90m"  # Grey
     UNDERLINE_CYAN = "\033[4;96m"  # Underline cyan
     RESET = "\033[0m"  # Reset to default
+
+
+def _find_rule_file_in_directory(rules_path: Path, rule_id: int) -> Optional[Path]:
+    """Find which YAML file in a directory contains a specific rule ID.
+
+    Args:
+        rules_path: Directory path containing YAML rule files
+        rule_id: The rule ID to search for
+
+    Returns:
+        Path to the YAML file containing the rule, or None if not found
+    """
+    for yaml_file in rules_path.glob("*.yaml"):
+        try:
+            with open(yaml_file, "r") as f:
+                rules_data = yaml.safe_load(f) or []
+            for rule in rules_data:
+                if rule.get("id") == rule_id:
+                    return yaml_file
+        except Exception:
+            continue
+    return None
+
+
+def _write_yaml_file(file_path: Path, rules_data: List[Dict[str, Any]]) -> None:
+    """Write rules data to a YAML file with consistent formatting.
+
+    Args:
+        file_path: Path to the YAML file to write
+        rules_data: List of rule dictionaries to write
+    """
+    with open(file_path, "w") as f:
+        yaml_content = yaml.dump(
+            rules_data,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        formatted_content = _format_yaml_content(yaml_content)
+        f.write(formatted_content)
 
 
 def _generate_unified_diff(
@@ -469,7 +503,7 @@ def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None
         if rules_path:
             if rules_path.is_dir():
                 # For remove command with directory, we need to find which file contains the rule
-                # This is more complex, so let's load all rules first to find the right file
+                # Validate rules can be loaded first
                 rule_loader = RuleLoader()
                 result = rule_loader.load_rules(str(rules_path))
                 if not result.is_successful:
@@ -482,19 +516,7 @@ def rule_remove_command(rule_id: int, rules_path: Optional[Path] = None) -> None
                     raise typer.Exit(1)
 
                 # Find which file contains this rule ID
-                rules_file = None
-                for yaml_file in rules_path.glob("*.yaml"):
-                    try:
-                        with open(yaml_file, "r") as f:
-                            rules_data = yaml.safe_load(f) or []
-                        for rule in rules_data:
-                            if rule.get("id") == rule_id:
-                                rules_file = yaml_file
-                                break
-                        if rules_file:
-                            break
-                    except Exception:
-                        continue
+                rules_file = _find_rule_file_in_directory(rules_path, rule_id)
 
                 if not rules_file:
                     typer.echo(
@@ -1745,51 +1767,6 @@ def _filter_transactions_by_date_options(
             filtered_transactions.append(transaction)
 
     return filtered_transactions
-
-
-def _choose_date_range(
-    changelog: ChangelogManager,
-    date_options: Optional[DateOptions],
-) -> Tuple[Optional[str], Optional[str]]:
-    """Determine date range from options or last sync info."""
-    if not date_options:
-        # No date options provided, use last sync info or reasonable defaults
-        last = changelog.get_last_sync_info()
-        if last:
-            _, from_date, to_date = last
-            return from_date, to_date
-        else:
-            # No sync info, get recent transactions (last 30 days)
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
-            return start_date.isoformat()[:10], end_date.isoformat()[:10]
-
-    if date_options.this_month:
-        start, end = get_this_month_range()
-        return start.isoformat(), end.isoformat()
-    if date_options.last_month:
-        start, end = get_last_month_range()
-        return start.isoformat(), end.isoformat()
-    if date_options.this_year:
-        start, end = get_this_year_range()
-        return start.isoformat(), end.isoformat()
-    if date_options.last_year:
-        start, end = get_last_year_range()
-        return start.isoformat(), end.isoformat()
-    if date_options.from_date or date_options.to_date:
-        start, end = expand_date_range(date_options.from_date, date_options.to_date)
-        return start.isoformat() if start else None, end.isoformat() if end else None
-
-    # No specific date options, use last sync info or reasonable defaults
-    last = changelog.get_last_sync_info()
-    if last:
-        _, from_date, to_date = last
-        return from_date, to_date
-    else:
-        # No sync info, get recent transactions (last 30 days)
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-        return start_date.isoformat()[:10], end_date.isoformat()[:10]
 
 
 def _filter_transactions_by_ledgerset(

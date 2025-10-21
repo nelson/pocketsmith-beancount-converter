@@ -5,6 +5,7 @@ from decimal import Decimal
 from datetime import datetime, date
 
 from .model import Transaction
+from .date_utils import parse_date
 
 
 def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transaction:
@@ -17,7 +18,7 @@ def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transactio
     amount = Decimal(str(pocketsmith_data.get("amount", "0")))
 
     # Date
-    transaction_date = _parse_date(pocketsmith_data.get("date"))
+    transaction_date = parse_date(pocketsmith_data.get("date"))
 
     # Currency
     currency_code = (
@@ -127,34 +128,6 @@ def _format_account(account_data: Optional[Dict[str, Any]]) -> Optional[Dict[str
         "starting_balance": account_data.get("starting_balance"),
         "starting_balance_date": account_data.get("starting_balance_date"),
     }
-
-
-def _parse_date(date_value: Any) -> date:
-    """Parse date from PocketSmith format."""
-    if date_value is None:
-        return date.today()
-
-    if isinstance(date_value, date):
-        return date_value
-
-    if isinstance(date_value, datetime):
-        return date_value.date()
-
-    if isinstance(date_value, str):
-        try:
-            # PocketSmith typically uses ISO format
-            parsed = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
-            return parsed.date()
-        except ValueError:
-            try:
-                # Try just date format
-                parsed = datetime.strptime(date_value[:10], "%Y-%m-%d")
-                return parsed.date()
-            except ValueError:
-                pass
-
-    # Fallback to today
-    return date.today()
 
 
 def _parse_timestamp(timestamp_value: Any) -> Optional[datetime]:
