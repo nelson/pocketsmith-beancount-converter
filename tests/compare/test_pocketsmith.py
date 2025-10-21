@@ -20,14 +20,19 @@ class TestConvertPocketsmithToModel:
 
     def test_convert_minimal_pocketsmith_transaction(self):
         """Test converting minimal PocketSmith transaction."""
-        pocketsmith_data = {"id": 123, "amount": "100.50", "date": "2024-01-15"}
+        pocketsmith_data = {
+            "id": 123,
+            "amount": "100.50",
+            "date": "2024-01-15",
+            "currency_code": "AUD",
+        }
 
         transaction = convert_pocketsmith_to_model(pocketsmith_data)
 
         assert transaction.id == "123"
         assert transaction.amount == Decimal("100.50")
         assert transaction.date == date(2024, 1, 15)
-        assert transaction.currency_code == "USD"  # Default
+        assert transaction.currency_code == "AUD"
 
     def test_convert_full_pocketsmith_transaction(self):
         """Test converting full PocketSmith transaction."""
@@ -109,6 +114,7 @@ class TestConvertPocketsmithToModel:
             "id": 123,
             "amount": "100.50",
             "date": "2024-01-15",
+            "currency_code": "AUD",
             "merchant": "  ",  # Whitespace only
             "payee": "",  # Empty string
             "note": "   ",
@@ -129,6 +135,7 @@ class TestConvertPocketsmithToModel:
             "id": 123,
             "amount": "100.50",
             "date": "2024-01-15",
+            "currency_code": "AUD",
             "merchant": "Test Merchant",
             "note": "Test note",
             # No payee or memo specified - should fallback
@@ -160,6 +167,7 @@ class TestConvertPocketsmithToModel:
             "id": 123,
             "amount": "100.50",
             "date": "2024-01-15",
+            "currency_code": "AUD",
             "labels": ["tag1", "tag2"],
         }
 
@@ -171,6 +179,7 @@ class TestConvertPocketsmithToModel:
             "id": 123,
             "amount": "100.50",
             "date": "2024-01-15",
+            "currency_code": "AUD",
             "labels": "single_tag",
         }
 
@@ -182,6 +191,7 @@ class TestConvertPocketsmithToModel:
             "id": 123,
             "amount": "100.50",
             "date": "2024-01-15",
+            "currency_code": "AUD",
             "labels": None,
         }
 
@@ -200,8 +210,18 @@ class TestConvertPocketsmithListToModel:
     def test_convert_multiple_transactions(self):
         """Test converting multiple transactions."""
         pocketsmith_transactions = [
-            {"id": 123, "amount": "100.50", "date": "2024-01-15"},
-            {"id": 124, "amount": "200.75", "date": "2024-01-16"},
+            {
+                "id": 123,
+                "amount": "100.50",
+                "date": "2024-01-15",
+                "currency_code": "AUD",
+            },
+            {
+                "id": 124,
+                "amount": "200.75",
+                "date": "2024-01-16",
+                "currency_code": "AUD",
+            },
         ]
 
         transactions = convert_pocketsmith_list_to_model(pocketsmith_transactions)
@@ -298,7 +318,7 @@ class TestFormatAccount:
 
     def test_format_minimal_account(self):
         """Test formatting minimal account data."""
-        account_data = {"id": 1}
+        account_data = {"id": 1, "currency_code": "AUD"}
 
         result = _format_account(account_data)
 
@@ -306,13 +326,18 @@ class TestFormatAccount:
         assert result["id"] == 1
         assert result["name"] == "Unknown"  # Default
         assert result["type"] == "bank"  # Default
-        assert result["currency_code"] == "USD"  # Default
+        assert result["currency_code"] == "AUD"
         assert result["institution"]["title"] == "Unknown"
         assert result["institution"]["currency_code"] is None
 
     def test_format_account_with_none_institution(self):
         """Test formatting account with None institution."""
-        account_data = {"id": 1, "name": "Test Account", "institution": None}
+        account_data = {
+            "id": 1,
+            "name": "Test Account",
+            "currency_code": "AUD",
+            "institution": None,
+        }
 
         result = _format_account(account_data)
 
@@ -418,6 +443,7 @@ class TestPropertyBasedTests:
             "id": transaction_id,
             "amount": "100.00",
             "date": "2024-01-15",
+            "currency_code": "AUD",
         }
 
         transaction = convert_pocketsmith_to_model(pocketsmith_data)
@@ -430,7 +456,12 @@ class TestPropertyBasedTests:
     )
     def test_pocketsmith_amount_conversion_properties(self, amount):
         """Property test: amounts should be preserved as Decimals."""
-        pocketsmith_data = {"id": 123, "amount": str(amount), "date": "2024-01-15"}
+        pocketsmith_data = {
+            "id": 123,
+            "amount": str(amount),
+            "date": "2024-01-15",
+            "currency_code": "AUD",
+        }
 
         transaction = convert_pocketsmith_to_model(pocketsmith_data)
         assert isinstance(transaction.amount, Decimal)
@@ -443,6 +474,7 @@ class TestPropertyBasedTests:
             "id": 123,
             "amount": "100.00",
             "date": test_date.isoformat(),
+            "currency_code": "AUD",
         }
 
         transaction = convert_pocketsmith_to_model(pocketsmith_data)
@@ -455,6 +487,7 @@ class TestPropertyBasedTests:
             "id": 123,
             "amount": "100.00",
             "date": "2024-01-15",
+            "currency_code": "AUD",
             "merchant": text_value,
             "note": text_value,
         }
@@ -476,6 +509,7 @@ class TestPropertyBasedTests:
                     "id": st.integers(min_value=1, max_value=999999),
                     "amount": st.just("100.00"),
                     "date": st.just("2024-01-15"),
+                    "currency_code": st.just("AUD"),
                 }
             ),
             min_size=0,

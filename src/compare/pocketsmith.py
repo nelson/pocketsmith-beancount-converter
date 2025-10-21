@@ -21,10 +21,18 @@ def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transactio
     transaction_date = parse_date(pocketsmith_data.get("date"))
 
     # Currency
-    currency_code = (
-        pocketsmith_data.get("currency_code")
-        or pocketsmith_data.get("transaction_account", {}).get("currency_code", "USD")
-    ).upper()
+    currency_code = pocketsmith_data.get("currency_code") or pocketsmith_data.get(
+        "transaction_account", {}
+    ).get("currency_code")
+    if not currency_code:
+        import json
+
+        transaction_json = json.dumps(pocketsmith_data, indent=2, default=str)
+        raise ValueError(
+            f"Transaction {transaction_id} is missing currency_code.\n"
+            f"Transaction data:\n{transaction_json}"
+        )
+    currency_code = currency_code.upper()
 
     # Transaction details
     merchant = pocketsmith_data.get("merchant", "").strip() or None
@@ -114,11 +122,22 @@ def _format_account(account_data: Optional[Dict[str, Any]]) -> Optional[Dict[str
 
     institution = account_data.get("institution") or {}
 
+    # Get currency_code - raise error if missing
+    currency_code = account_data.get("currency_code")
+    if not currency_code:
+        import json
+
+        account_json = json.dumps(account_data, indent=2, default=str)
+        raise ValueError(
+            f"Account {account_data.get('id', 'unknown')} is missing currency_code.\n"
+            f"Account data:\n{account_json}"
+        )
+
     return {
         "id": account_data.get("id"),
         "name": account_data.get("name", "Unknown"),
         "type": account_data.get("type", "bank"),
-        "currency_code": account_data.get("currency_code", "USD"),
+        "currency_code": currency_code,
         "institution": {
             "title": institution.get("title", "Unknown"),
             "currency_code": institution.get("currency_code"),
