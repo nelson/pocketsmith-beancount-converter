@@ -12,8 +12,8 @@ from src.compare.beancount import (
     _extract_currency_from_beancount,
     _extract_account_from_postings,
     _extract_category_from_postings,
-    _parse_date,
 )
+from src.compare.date_utils import parse_date as _parse_date
 from src.compare.model import Transaction
 
 
