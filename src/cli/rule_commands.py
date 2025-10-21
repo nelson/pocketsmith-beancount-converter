@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union, Tuple, Set
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import typer
 import yaml
@@ -15,10 +15,16 @@ from ..rules.matcher import RuleMatcher
 from ..beancount.read import read_ledger
 from beancount.core import data as bc_data
 from .date_options import DateOptions
+from .date_parser import (
+    expand_date_range,
+    get_this_month_range,
+    get_last_month_range,
+    get_this_year_range,
+    get_last_year_range,
+)
 from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
 from .common import handle_default_ledger
-from .shared_utils import choose_date_range
 
 
 # ANSI color codes for terminal output
