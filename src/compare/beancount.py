@@ -2,7 +2,6 @@
 
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
-from datetime import datetime, date
 
 from .model import Transaction
 from .date_utils import parse_date
