@@ -9,9 +9,9 @@ from src.compare.pocketsmith import (
     convert_pocketsmith_list_to_model,
     _format_category,
     _format_account,
-    _parse_date,
     _parse_timestamp,
 )
+from src.compare.date_utils import parse_date as _parse_date
 from src.compare.model import Transaction
 
 
