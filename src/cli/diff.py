@@ -20,6 +20,7 @@ from .validators import validate_date_options, ValidationError
 from .date_options import DateOptions
 from .changelog import ChangelogManager, determine_changelog_path
 from .common import handle_default_ledger
+from .shared_utils import determine_single_file_mode
 
 # Import existing functionality
 from ..pocketsmith.common import PocketSmithClient
@@ -294,18 +295,6 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
             }
 
     return local
-
-
-def determine_single_file_mode(path: Path) -> bool:
-    """Determine if the path is using single file or hierarchical mode."""
-    if path.is_file():
-        return True
-    elif path.is_dir():
-        # Check if it has the hierarchical structure
-        main_file = path / "main.beancount"
-        return not main_file.exists()
-    else:
-        raise ValueError(f"Path does not exist: {path}")
 
 
 def diff_command(

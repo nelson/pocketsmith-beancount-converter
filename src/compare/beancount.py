@@ -5,6 +5,7 @@ from decimal import Decimal
 from datetime import datetime, date
 
 from .model import Transaction
+from .date_utils import parse_date
 
 
 def convert_beancount_to_model(beancount_data: Dict[str, Any]) -> Transaction:
@@ -13,7 +14,7 @@ def convert_beancount_to_model(beancount_data: Dict[str, Any]) -> Transaction:
     # Extract core fields
     transaction_id = str(beancount_data.get("id", ""))
     amount = _extract_amount_from_beancount(beancount_data)
-    transaction_date = _parse_date(beancount_data.get("date"))
+    transaction_date = parse_date(beancount_data.get("date"))
     currency_code = _extract_currency_from_beancount(beancount_data)
 
     # Extract transaction details
@@ -141,31 +142,3 @@ def _extract_category_from_postings(
                 }
 
     return None
-
-
-def _parse_date(date_value: Any) -> date:
-    """Parse date from various formats."""
-    if date_value is None:
-        return date.today()
-
-    if isinstance(date_value, date):
-        return date_value
-
-    if isinstance(date_value, datetime):
-        return date_value.date()
-
-    if isinstance(date_value, str):
-        try:
-            # Try ISO format first
-            parsed = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
-            return parsed.date()
-        except ValueError:
-            try:
-                # Try just date format
-                parsed = datetime.strptime(date_value, "%Y-%m-%d")
-                return parsed.date()
-            except ValueError:
-                pass
-
-    # Fallback to today
-    return date.today()

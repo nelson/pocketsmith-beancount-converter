@@ -8,27 +8,22 @@ import typer
 from dotenv import load_dotenv
 
 from .date_parser import (
+    DateParseError,
     expand_date_range,
     get_this_month_range,
     get_last_month_range,
     get_this_year_range,
     get_last_year_range,
-    DateParseError,
 )
 from .validators import validate_date_options, ValidationError
 from .changelog import ChangelogManager, determine_changelog_path
 from .date_options import DateOptions
+from .shared_utils import apply_ledgerset_filtering, determine_single_file_mode
 
 # Import refactored functionality
 from ..pocketsmith.common import PocketSmithClient
 from ..beancount.write import write_hierarchical_ledger
 from .diff import read_local_transactions as _read_local_for_diff
-from .rule_commands import (
-    _get_transaction_ids_from_ledgerset,
-    _extract_date_ranges_from_ledgerset,
-    _get_transaction_date,
-    _transaction_matches_date_ranges,
-)
 
 
 class TransactionComparator:
@@ -121,58 +116,6 @@ def read_existing_transactions(
 ) -> Dict[str, Dict[str, Any]]:
     """Read existing transactions leveraging the diff reader implementation."""
     return _read_local_for_diff(path, single_file)
-
-
-def _apply_ledgerset_filtering(
-    transactions: Dict[str, Dict[str, Any]], ledgerset: str, ledger_base_path: Path
-) -> Dict[str, Dict[str, Any]]:
-    """Filter transactions to only those that match the ledgerset criteria."""
-    # Try to get transaction IDs from specific ledgerset files
-    target_transaction_ids = _get_transaction_ids_from_ledgerset(
-        ledger_base_path, ledgerset
-    )
-
-    if target_transaction_ids:
-        # Filter transactions to only those in the ledgerset
-        filtered_transactions = {
-            tx_id: tx_data
-            for tx_id, tx_data in transactions.items()
-            if tx_id in target_transaction_ids
-        }
-        typer.echo(
-            f"Ledgerset '{ledgerset}' filtered to {len(filtered_transactions)} transactions"
-        )
-        return filtered_transactions
-    else:
-        # Fall back to date-based filtering if no files found but pattern matches date ranges
-        date_ranges = _extract_date_ranges_from_ledgerset(ledgerset)
-        if date_ranges:
-            filtered_transactions = {}
-            for tx_id, tx_data in transactions.items():
-                transaction_date = _get_transaction_date(tx_data)
-                if transaction_date and _transaction_matches_date_ranges(
-                    transaction_date, date_ranges
-                ):
-                    filtered_transactions[tx_id] = tx_data
-            typer.echo(
-                f"Ledgerset '{ledgerset}' date-filtered to {len(filtered_transactions)} transactions"
-            )
-            return filtered_transactions
-        else:
-            typer.echo(f"Warning: No transactions found for ledgerset '{ledgerset}'")
-            return {}
-
-
-def determine_single_file_mode(path: Path) -> bool:
-    """Determine if the path is using single file or hierarchical mode."""
-    if path.is_file():
-        return True
-    elif path.is_dir():
-        # Check if it has the hierarchical structure
-        main_file = path / "main.beancount"
-        return not main_file.exists()
-    else:
-        raise ValueError(f"Path does not exist: {path}")
 
 
 def pull_command(
@@ -337,7 +280,7 @@ def pull_command(
 
         # Apply ledgerset filtering if specified
         if ledgerset:
-            existing_transactions = _apply_ledgerset_filtering(
+            existing_transactions = apply_ledgerset_filtering(
                 existing_transactions, ledgerset, destination
             )
 
