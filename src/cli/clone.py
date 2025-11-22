@@ -220,7 +220,9 @@ def clone_command(
             )
 
             # Calculate earliest transaction dates per account
-            account_transaction_dates = calculate_earliest_transaction_dates(transactions)
+            account_transaction_dates = calculate_earliest_transaction_dates(
+                transactions
+            )
 
             # Generate all transactions in one file
             content = generate_main_file_content(
