@@ -183,7 +183,9 @@ def clone_command(
         # Users should manually add balance assertions at points where they've verified
         # their account balances.
         if not quiet:
-            typer.echo("Skipping balance assertions (should be added manually if needed)")
+            typer.echo(
+                "Skipping balance assertions (should be added manually if needed)"
+            )
         account_balances = {}
 
         # Write to Beancount format
