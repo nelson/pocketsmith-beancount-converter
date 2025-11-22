@@ -531,9 +531,9 @@ def generate_account_declarations(
             # 4. Today's date
             if account_transaction_dates and account_id in account_transaction_dates:
                 open_date = account_transaction_dates[account_id]
-            elif account.get("starting_balance_date"):
+            elif starting_balance_date := account.get("starting_balance_date"):
                 open_date = datetime.fromisoformat(
-                    account.get("starting_balance_date").replace("Z", "+00:00")
+                    starting_balance_date.replace("Z", "+00:00")
                 ).strftime("%Y-%m-%d")
             else:
                 open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
