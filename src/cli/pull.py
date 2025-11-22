@@ -326,29 +326,12 @@ def pull_command(
 
         # Process updates if not dry run
         if not dry_run:
-            # Fetch account balances
+            # Skip balance assertions
+            # Balance assertions in beancount require ALL prior transactions to be in the ledger
+            # to calculate the accumulated balance. Auto-generated balance assertions will fail
+            # unless we have complete transaction history. Users should manually add balance
+            # assertions at points where they've verified their account balances.
             account_balances = {}
-            try:
-                for transaction_account in transaction_accounts:
-                    transaction_account_id = transaction_account.get("id")
-                    current_balance = transaction_account.get("current_balance")
-                    current_balance_date = transaction_account.get(
-                        "current_balance_date"
-                    )
-
-                    if (
-                        transaction_account_id
-                        and current_balance is not None
-                        and current_balance_date
-                    ):
-                        account_balances[transaction_account_id] = [
-                            {
-                                "date": f"{current_balance_date}T00:00:00Z",
-                                "balance": str(current_balance),
-                            }
-                        ]
-            except Exception:
-                account_balances = {}
 
             # Write transactions using refactored functionality
             if single_file:
