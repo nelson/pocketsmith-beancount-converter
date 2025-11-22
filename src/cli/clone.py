@@ -1,7 +1,7 @@
 """Clone command implementation for downloading PocketSmith transactions."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from datetime import date
 
 import typer
