@@ -331,7 +331,7 @@ def pull_command(
             # to calculate the accumulated balance. Auto-generated balance assertions will fail
             # unless we have complete transaction history. Users should manually add balance
             # assertions at points where they've verified their account balances.
-            account_balances = {}
+            account_balances: Dict[int, List[Dict[str, Any]]] = {}
 
             # Write transactions using refactored functionality
             if single_file:
