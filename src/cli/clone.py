@@ -186,7 +186,7 @@ def clone_command(
             typer.echo(
                 "Skipping balance assertions (should be added manually if needed)"
             )
-        account_balances = {}
+        account_balances: Dict[int, List[Dict[str, Any]]] = {}
 
         # Write to Beancount format
         if not quiet:
