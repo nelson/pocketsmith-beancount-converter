@@ -176,33 +176,15 @@ def clone_command(
                 )
             return
 
-        # Fetch account balances
+        # Skip balance assertions
+        # Balance assertions in beancount require ALL prior transactions to be in the ledger
+        # to calculate the accumulated balance. Since we rarely have complete transaction
+        # history from account opening, auto-generated balance assertions will fail.
+        # Users should manually add balance assertions at points where they've verified
+        # their account balances.
         if not quiet:
-            typer.echo("Fetching account balances...")
-        try:
-            account_balances = {}
-            for transaction_account in transaction_accounts:
-                transaction_account_id = transaction_account.get("id")
-                current_balance = transaction_account.get("current_balance")
-                current_balance_date = transaction_account.get("current_balance_date")
-
-                if (
-                    transaction_account_id
-                    and current_balance is not None
-                    and current_balance_date
-                ):
-                    account_balances[transaction_account_id] = [
-                        {
-                            "date": f"{current_balance_date}T00:00:00Z",
-                            "balance": str(current_balance),
-                        }
-                    ]
-            if not quiet:
-                typer.echo(f"Extracted balances for {len(account_balances)} accounts")
-        except Exception as e:
-            if not quiet:
-                typer.echo(f"Warning: Failed to fetch account balances: {e}", err=True)
-            account_balances = {}
+            typer.echo("Skipping balance assertions (should be added manually if needed)")
+        account_balances = {}
 
         # Write to Beancount format
         if not quiet:
