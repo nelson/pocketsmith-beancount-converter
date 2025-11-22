@@ -216,7 +216,11 @@ def clone_command(
             from ..beancount.write import (
                 generate_transactions_content,
                 generate_main_file_content,
+                calculate_earliest_transaction_dates,
             )
+
+            # Calculate earliest transaction dates per account
+            account_transaction_dates = calculate_earliest_transaction_dates(transactions)
 
             # Generate all transactions in one file
             content = generate_main_file_content(
@@ -224,6 +228,7 @@ def clone_command(
                 transaction_accounts,
                 categories,
                 account_balances,
+                account_transaction_dates,
             )
 
             # Add transactions
