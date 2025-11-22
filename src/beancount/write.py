@@ -16,6 +16,44 @@ from .common import (
 )
 
 
+def calculate_earliest_transaction_dates(
+    transactions: List[Dict[str, Any]]
+) -> Dict[int, str]:
+    """Calculate the earliest transaction date for each account.
+
+    Args:
+        transactions: List of transactions
+
+    Returns:
+        Dictionary mapping account_id to earliest transaction date (YYYY-MM-DD format)
+    """
+    account_earliest_dates = {}
+
+    for transaction in transactions:
+        account = transaction.get("transaction_account", {})
+        account_id = account.get("id")
+        transaction_date = transaction.get("date", "")
+
+        if account_id and transaction_date:
+            # Parse date
+            try:
+                date = datetime.fromisoformat(
+                    transaction_date.replace("Z", "+00:00")
+                ).strftime("%Y-%m-%d")
+
+                # Track earliest date per account
+                if account_id not in account_earliest_dates:
+                    account_earliest_dates[account_id] = date
+                else:
+                    account_earliest_dates[account_id] = min(
+                        account_earliest_dates[account_id], date
+                    )
+            except (ValueError, AttributeError):
+                continue
+
+    return account_earliest_dates
+
+
 def write_ledger(
     content: str,
     file_path: str,
@@ -73,6 +111,9 @@ def write_hierarchical_ledger(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # Calculate earliest transaction dates per account
+    account_transaction_dates = calculate_earliest_transaction_dates(transactions)
+
     # Group transactions by year and month
     transactions_by_month = defaultdict(list)
     for transaction in transactions:
@@ -111,6 +152,7 @@ def write_hierarchical_ledger(
         transaction_accounts,
         categories,
         account_balances,
+        account_transaction_dates,
     )
 
     main_file_path = output_path / "main.beancount"
@@ -184,6 +226,7 @@ def generate_main_file_content(
     transaction_accounts: List[Dict[str, Any]],
     categories: List[Dict[str, Any]],
     account_balances: Optional[Dict[int, List[Dict[str, Any]]]] = None,
+    account_transaction_dates: Optional[Dict[int, str]] = None,
 ) -> str:
     """Generate the main beancount file with declarations and includes."""
     content_lines = []
@@ -232,7 +275,7 @@ def generate_main_file_content(
 
     # Generate account declarations
     account_declarations = generate_account_declarations(
-        transaction_accounts, earliest_date
+        transaction_accounts, earliest_date, account_transaction_dates
     )
     if account_declarations:
         content_lines.extend(account_declarations)
@@ -247,10 +290,12 @@ def generate_main_file_content(
             content_lines.extend(category_declarations)
             content_lines.append("")
 
-    # Always add Expenses:Uncategorized declaration
+    # Always add Expenses:Uncategorized and Income:Uncategorized declarations
     open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
-    uncategorized_declaration = f"{open_date} open Expenses:Uncategorized"
-    content_lines.append(uncategorized_declaration)
+    uncategorized_expense_declaration = f"{open_date} open Expenses:Uncategorized"
+    uncategorized_income_declaration = f"{open_date} open Income:Uncategorized"
+    content_lines.append(uncategorized_expense_declaration)
+    content_lines.append(uncategorized_income_declaration)
     content_lines.append("")
 
     # Generate balance directives if provided
@@ -424,9 +469,9 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         # Get category
         category = transaction.get("category")
 
-        # For positive amounts (income) without a category, default to Income:Unknown
+        # For positive amounts (income) without a category, default to Income:Uncategorized
         if amount > 0 and not category:
-            category_account = "Income:Unknown"
+            category_account = "Income:Uncategorized"
         else:
             category_account = get_category_account_from_category(category or {})
 
@@ -447,8 +492,18 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
 def generate_account_declarations(
     transaction_accounts: List[Dict[str, Any]],
     earliest_date: Optional[str] = None,
+    account_transaction_dates: Optional[Dict[int, str]] = None,
 ) -> List[str]:
-    """Generate account open declarations."""
+    """Generate account open declarations.
+
+    Args:
+        transaction_accounts: List of account data
+        earliest_date: Fallback earliest date from transactions
+        account_transaction_dates: Dictionary mapping account_id to earliest transaction date
+
+    Returns:
+        List of account open declarations
+    """
     declarations = []
     account_names = set()
 
@@ -469,15 +524,18 @@ def generate_account_declarations(
                 )
             currency = currency.upper()
 
-            # Use starting_balance_date as account open date
-            open_date = account.get("starting_balance_date")
-            if open_date:
-                # Parse and format the date
+            # Priority order for account opening date:
+            # 1. Earliest transaction date for this specific account (from fetched data)
+            # 2. PocketSmith's starting_balance_date
+            # 3. Global earliest_date from all transactions
+            # 4. Today's date
+            if account_transaction_dates and account_id in account_transaction_dates:
+                open_date = account_transaction_dates[account_id]
+            elif account.get("starting_balance_date"):
                 open_date = datetime.fromisoformat(
-                    open_date.replace("Z", "+00:00")
+                    account.get("starting_balance_date").replace("Z", "+00:00")
                 ).strftime("%Y-%m-%d")
             else:
-                # Use earliest transaction date if available, otherwise today
                 open_date = earliest_date or datetime.now().strftime("%Y-%m-%d")
 
             # Convert account ID to decimal
@@ -544,7 +602,7 @@ def get_category_account_from_category(
 
     if category.get("is_transfer", False):
         return f"Transfers:{sanitized}"
-    elif category.get("is_income", False) or is_income or title.lower() == "income":
+    elif category.get("is_income", False) or is_income or sanitized.lower() == "income":
         return f"Income:{sanitized}"
     else:
         return f"Expenses:{sanitized}"
