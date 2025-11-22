@@ -118,6 +118,36 @@ def read_existing_transactions(
     return _read_local_for_diff(path, single_file)
 
 
+def read_existing_month_includes(ledger_dir: Path) -> List[str]:
+    """Read existing month includes from main.beancount file.
+
+    Returns list of year-month strings like ["2020-02", "2020-03", ...]
+    """
+    main_file = ledger_dir / "main.beancount"
+    if not main_file.exists():
+        return []
+
+    months = []
+    try:
+        with open(main_file, "r", encoding="utf-8") as f:
+            for line in f:
+                # Look for include statements like: include "2020/2020-02.beancount"
+                if line.strip().startswith('include "') and '.beancount"' in line:
+                    # Extract the year-month from the path
+                    import re
+
+                    match = re.search(
+                        r'include "(\d{4})/(\d{4}-\d{2})\.beancount"', line
+                    )
+                    if match:
+                        year_month = match.group(2)
+                        months.append(year_month)
+    except Exception:
+        pass
+
+    return months
+
+
 def pull_command(
     destination: Path,
     date_options: Optional[DateOptions] = None,
@@ -344,13 +374,15 @@ def pull_command(
                 with open(destination, "w", encoding="utf-8") as f:
                     f.write(content)
             else:
-                # For hierarchical structure, use the new write function
+                # For hierarchical structure, read existing months and use the new write function
+                existing_months = read_existing_month_includes(destination)
                 write_hierarchical_ledger(
                     all_transactions,
                     transaction_accounts,
                     categories,
                     str(destination),
                     account_balances,
+                    existing_months,
                 )
 
             # Write changelog entries

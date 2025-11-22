@@ -57,8 +57,19 @@ def write_hierarchical_ledger(
     categories: List[Dict[str, Any]],
     output_dir: str,
     account_balances: Optional[Dict[int, List[Dict[str, Any]]]] = None,
+    existing_months: Optional[List[str]] = None,
 ) -> Dict[str, str]:
-    """Write transactions to hierarchical file structure with yearly folders and monthly files."""
+    """Write transactions to hierarchical file structure with yearly folders and monthly files.
+
+    Args:
+        transactions: List of transactions to write
+        transaction_accounts: List of account data
+        categories: List of category data
+        output_dir: Output directory path
+        account_balances: Optional account balances
+        existing_months: Optional list of existing year-month strings (e.g., ["2020-02", "2020-03"])
+                        to preserve in includes even if no new transactions for those months
+    """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -89,9 +100,14 @@ def write_hierarchical_ledger(
         write_ledger(month_content, str(monthly_file_path))
         written_files[f"{year}/{monthly_filename}"] = str(monthly_file_path)
 
+    # Combine existing months with new months for includes
+    all_months = set(transactions_by_month.keys())
+    if existing_months:
+        all_months.update(existing_months)
+
     # Create top-level main file with declarations and includes
     main_content = generate_main_file_content(
-        list(transactions_by_month.keys()),
+        sorted(list(all_months)),  # Sort to ensure consistent ordering
         transaction_accounts,
         categories,
         account_balances,
