@@ -459,7 +459,7 @@ class TestConvertTransactionToBeancount:
         # For positive amounts, account gets positive, income gets negative
         assert "1000.00 USD" in result
         assert "-1000.00 USD" in result
-        assert "Income:Unknown" in result
+        assert "Income:Uncategorized" in result
 
     def test_convert_transaction_missing_fields(self):
         """Test converting transaction with missing optional fields."""
