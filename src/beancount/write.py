@@ -17,7 +17,7 @@ from .common import (
 
 
 def calculate_earliest_transaction_dates(
-    transactions: List[Dict[str, Any]]
+    transactions: List[Dict[str, Any]],
 ) -> Dict[int, str]:
     """Calculate the earliest transaction date for each account.
 
