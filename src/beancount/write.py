@@ -132,8 +132,8 @@ def write_hierarchical_ledger(
     # Group transactions by year and month
     transactions_by_month = defaultdict(list)
     for transaction in transactions:
-        date = datetime.fromisoformat(transaction["date"].replace("Z", "+00:00"))
-        year_month = date.strftime("%Y-%m")
+        trans_date = datetime.fromisoformat(transaction["date"].replace("Z", "+00:00"))
+        year_month = trans_date.strftime("%Y-%m")
         transactions_by_month[year_month].append(transaction)
 
     written_files = {}
