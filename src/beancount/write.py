@@ -96,6 +96,7 @@ def write_hierarchical_ledger(
     output_dir: str,
     account_balances: Optional[Dict[int, List[Dict[str, Any]]]] = None,
     existing_months: Optional[List[str]] = None,
+    existing_account_dates: Optional[Dict[int, str]] = None,
 ) -> Dict[str, str]:
     """Write transactions to hierarchical file structure with yearly folders and monthly files.
 
@@ -107,12 +108,26 @@ def write_hierarchical_ledger(
         account_balances: Optional account balances
         existing_months: Optional list of existing year-month strings (e.g., ["2020-02", "2020-03"])
                         to preserve in includes even if no new transactions for those months
+        existing_account_dates: Optional dict mapping account_id to opening date (YYYY-MM-DD).
+                              If provided, these dates are preserved; only new accounts get calculated dates.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Calculate earliest transaction dates per account
-    account_transaction_dates = calculate_earliest_transaction_dates(transactions)
+    # Handle account transaction dates:
+    # - If existing_account_dates provided (pull operation), preserve them and only calculate for new accounts
+    # - If not provided (clone operation), calculate from scratch
+    if existing_account_dates:
+        # Preserve existing dates and add any new accounts found in current transactions
+        account_transaction_dates = existing_account_dates.copy()
+        new_account_dates = calculate_earliest_transaction_dates(transactions)
+        # Only add dates for accounts not already in existing_account_dates
+        for account_id, date in new_account_dates.items():
+            if account_id not in account_transaction_dates:
+                account_transaction_dates[account_id] = date
+    else:
+        # Calculate fresh dates (clone operation)
+        account_transaction_dates = calculate_earliest_transaction_dates(transactions)
 
     # Group transactions by year and month
     transactions_by_month = defaultdict(list)
