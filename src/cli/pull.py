@@ -148,6 +148,44 @@ def read_existing_month_includes(ledger_dir: Path) -> List[str]:
     return months
 
 
+def read_existing_account_dates(ledger_dir: Path) -> Dict[int, str]:
+    """Read existing account opening dates from main.beancount.
+
+    Returns dict mapping account_id to opening date string (YYYY-MM-DD).
+    This preserves the account opening dates established during clone,
+    preventing them from being recalculated incorrectly during pull operations.
+    """
+    import re
+
+    main_file = ledger_dir / "main.beancount"
+    if not main_file.exists():
+        return {}
+
+    account_dates = {}
+    try:
+        with open(main_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                # Match account open directive: 2020-02-01 open Assets:Foo:Bar AUD
+                match = re.match(r"^(\d{4}-\d{2}-\d{2})\s+open\s+[\w:]+", line)
+                if match:
+                    open_date = match.group(1)
+                    # Look for id metadata on next line
+                    if i + 1 < len(lines):
+                        next_line = lines[i + 1]
+                        id_match = re.search(r"id:\s+(\d+)", next_line)
+                        if id_match:
+                            account_id = int(id_match.group(1))
+                            account_dates[account_id] = open_date
+                i += 1
+    except Exception:
+        pass
+
+    return account_dates
+
+
 def pull_command(
     destination: Path,
     date_options: Optional[DateOptions] = None,
@@ -357,8 +395,9 @@ def pull_command(
                 with open(destination, "w", encoding="utf-8") as f:
                     f.write(content)
             else:
-                # For hierarchical structure, read existing months and use the new write function
+                # For hierarchical structure, read existing months and account dates
                 existing_months = read_existing_month_includes(destination)
+                existing_account_dates = read_existing_account_dates(destination)
                 write_hierarchical_ledger(
                     all_transactions,
                     transaction_accounts,
@@ -366,6 +405,7 @@ def pull_command(
                     str(destination),
                     account_balances,
                     existing_months,
+                    existing_account_dates,
                 )
 
             # Write changelog entries
