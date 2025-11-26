@@ -143,8 +143,9 @@ class TransactionIndex:
 
     def _different_accounts(self, txn1: Transaction, txn2: Transaction) -> bool:
         """Check if from different accounts."""
-        account1 = txn1.account.get("id") if txn1.account else None
-        account2 = txn2.account.get("id") if txn2.account else None
+        # Try ID first (PocketSmith), fall back to name (Beancount)
+        account1 = (txn1.account.get("id") or txn1.account.get("name")) if txn1.account else None
+        account2 = (txn2.account.get("id") or txn2.account.get("name")) if txn2.account else None
         return account1 != account2 and account1 is not None and account2 is not None
 
 
