@@ -47,7 +47,7 @@ class TestTransactionIndex:
     def test_amount_bucket_10_to_100(self):
         """Test bucketing for $10-$100."""
         index = TransactionIndex([])
-        assert index._get_amount_bucket(Decimal("10.00")) == 10  # 10 + 10/10 = 11
+        assert index._get_amount_bucket(Decimal("10.00")) == 11  # 10 + 10/10 = 11
         assert index._get_amount_bucket(Decimal("25.00")) == 12  # 10 + 25/10 = 12
         assert index._get_amount_bucket(Decimal("99.00")) == 19  # 10 + 99/10 = 19
 
