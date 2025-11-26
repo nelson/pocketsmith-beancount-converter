@@ -23,6 +23,14 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+# Create transfer sub-app
+transfer_app = typer.Typer(
+    name="transfer",
+    help="Detect and manage transfer transactions",
+    no_args_is_help=True,
+)
+app.add_typer(transfer_app, name="transfer")
+
 
 @app.command()
 def help() -> None:
@@ -36,6 +44,7 @@ def help() -> None:
     typer.echo("  diff    Compare local beancount ledger with remote PocketSmith data")
     typer.echo("  push    Upload local changes to PocketSmith")
     typer.echo("  rule    Manage transaction processing rules")
+    typer.echo("  transfer Detect and manage transfer transactions")
     typer.echo("  help    Show this help message")
     typer.echo("")
     typer.echo("Use 'peabody COMMAND --help' for detailed help on any command.")
@@ -703,6 +712,62 @@ def rule_lookup(
         typer.echo(f"Using rules: {rules} (from {rules_source})")
 
     rule_lookup_command(merchant, category, account, rules)
+
+
+# Transfer commands
+@transfer_app.command("detect")
+def transfer_detect(
+    ledger: Optional[Path] = typer.Option(
+        None,
+        "--ledger",
+        help="File or directory to work with (defaults to current directory's beancount file)",
+    ),
+    dry_run: bool = typer.Option(
+        False, "-n", "--dry-run", help="Preview detection without applying changes"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Show detailed detection information"
+    ),
+) -> None:
+    """Detect and mark transfer transactions in the ledger.
+
+    Analyzes transactions to find matching pairs that represent transfers
+    between accounts. Confirmed transfers are marked with is_transfer=true
+    and forced to Expenses:Transfer category. Suspected transfers are
+    marked with paired metadata but keep their original category.
+
+    Example:
+    peabody transfer detect
+    peabody transfer detect --dry-run
+    """
+    from src.cli.transfer_commands import detect_transfers_command
+
+    detect_transfers_command(ledger, dry_run, verbose)
+
+
+@transfer_app.command("clear")
+def transfer_clear(
+    ledger: Optional[Path] = typer.Option(
+        None,
+        "--ledger",
+        help="File or directory to work with (defaults to current directory's beancount file)",
+    ),
+    dry_run: bool = typer.Option(
+        False, "-n", "--dry-run", help="Preview clearing without applying changes"
+    ),
+) -> None:
+    """Clear all transfer metadata from the ledger.
+
+    Removes is_transfer, paired, and suspect_reason metadata from all
+    transactions. Useful for re-running detection with different criteria.
+
+    Example:
+    peabody transfer clear
+    peabody transfer clear --dry-run
+    """
+    from src.cli.transfer_commands import clear_transfers_command
+
+    clear_transfers_command(ledger, dry_run)
 
 
 def main() -> None:
