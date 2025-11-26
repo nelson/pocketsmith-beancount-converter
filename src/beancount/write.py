@@ -457,6 +457,20 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
             except (ValueError, TypeError):
                 pass
 
+        # Add transfer metadata if present
+        if transaction.get("is_transfer"):
+            lines.append('    is_transfer: "true"')
+
+        paired = transaction.get("paired")
+        if paired is not None:
+            lines.append(f"    paired: {int(paired)}")
+
+        suspect_reason = transaction.get("suspect_reason")
+        if suspect_reason:
+            lines.append(f'    suspect_reason: "{suspect_reason}"')
+            # Also add human-readable comment after the transaction header
+            lines.insert(1, f"; Suspected transfer: {suspect_reason}")
+
         # Handle postings - simplified for PocketSmith transactions
         amount = Decimal(str(transaction.get("amount", 0)))
 
@@ -484,8 +498,11 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         # Get category
         category = transaction.get("category")
 
+        # If is_transfer is true, force category to Expenses:Transfer
+        if transaction.get("is_transfer"):
+            category_account = "Expenses:Transfer"
         # For positive amounts (income) without a category, default to Income:Uncategorized
-        if amount > 0 and not category:
+        elif amount > 0 and not category:
             category_account = "Income:Uncategorized"
         else:
             category_account = get_category_account_from_category(category or {})

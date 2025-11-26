@@ -46,6 +46,11 @@ def convert_beancount_to_model(beancount_data: Dict[str, Any]) -> Transaction:
     # Check if transaction needs review (flagged transactions)
     needs_review = beancount_data.get("flag") == "!"
 
+    # Extract transfer metadata
+    is_transfer = beancount_data.get("is_transfer", False)
+    paired = beancount_data.get("paired")
+    suspect_reason = beancount_data.get("suspect_reason")
+
     return Transaction(
         id=transaction_id,
         amount=amount,
@@ -64,6 +69,9 @@ def convert_beancount_to_model(beancount_data: Dict[str, Any]) -> Transaction:
         created_at=created_at,
         updated_at=updated_at,
         last_modified=last_modified,
+        is_transfer=is_transfer,
+        paired=paired,
+        suspect_reason=suspect_reason,
         metadata=beancount_data.copy(),  # Store original data as metadata
     )
 

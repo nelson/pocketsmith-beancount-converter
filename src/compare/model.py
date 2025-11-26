@@ -51,6 +51,11 @@ class Transaction:
     updated_at: Optional[datetime] = None
     last_modified: Optional[str] = None
 
+    # Transfer-related fields
+    is_transfer: Optional[bool] = None
+    paired: Optional[int] = None
+    suspect_reason: Optional[str] = None
+
     # Additional metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -100,6 +105,9 @@ class Transaction:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_modified": self.last_modified,
+            "is_transfer": self.is_transfer,
+            "paired": self.paired,
+            "suspect_reason": self.suspect_reason,
             "metadata": self.metadata,
         }
 
@@ -145,6 +153,9 @@ class Transaction:
             created_at=created_at,
             updated_at=updated_at,
             last_modified=data.get("last_modified"),
+            is_transfer=data.get("is_transfer"),
+            paired=data.get("paired"),
+            suspect_reason=data.get("suspect_reason"),
             metadata=data.get("metadata", {}),
         )
 

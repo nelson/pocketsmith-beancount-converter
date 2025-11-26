@@ -37,8 +37,18 @@ def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transactio
     # Transaction details
     merchant = pocketsmith_data.get("merchant", "").strip() or None
     payee = pocketsmith_data.get("payee", "").strip() or merchant
-    note = pocketsmith_data.get("note", "").strip() or None
-    memo = pocketsmith_data.get("memo", "").strip() or note
+    raw_note = pocketsmith_data.get("note", "").strip() or None
+    memo = pocketsmith_data.get("memo", "").strip() or raw_note
+
+    # Extract transfer metadata from note field
+    from ..pocketsmith.metadata_encoding import decode_metadata_from_note
+    clean_note, note_metadata = decode_metadata_from_note(raw_note)
+    note = clean_note or None
+
+    # Extract transfer fields
+    is_transfer = pocketsmith_data.get("is_transfer", False)
+    paired = note_metadata.get("paired")
+    suspect_reason = note_metadata.get("suspect_reason")
 
     # Category information
     category = _format_category(pocketsmith_data.get("category"))
@@ -86,6 +96,9 @@ def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transactio
         created_at=created_at,
         updated_at=updated_at,
         last_modified=last_modified,
+        is_transfer=is_transfer,
+        paired=paired,
+        suspect_reason=suspect_reason,
         metadata=pocketsmith_data.copy(),  # Store original data as metadata
     )
 

@@ -77,6 +77,14 @@ def parse_transaction_entry(entry: Transaction) -> Optional[Dict[str, Any]]:
             if "closing_balance" in entry.meta:
                 transaction["closing_balance"] = entry.meta["closing_balance"]
 
+            # Extract transfer metadata
+            if "is_transfer" in entry.meta:
+                transaction["is_transfer"] = entry.meta["is_transfer"] in ["true", True]
+            if "paired" in entry.meta:
+                transaction["paired"] = int(entry.meta["paired"])
+            if "suspect_reason" in entry.meta:
+                transaction["suspect_reason"] = str(entry.meta["suspect_reason"])
+
         # Extract postings
         for posting in entry.postings:
             posting_data: Dict[str, Any] = {
