@@ -87,7 +87,17 @@ def _extract_amount_from_beancount(beancount_data: Dict[str, Any]) -> Decimal:
     """Extract the main transaction amount from beancount postings."""
     postings = beancount_data.get("postings", [])
 
-    # Look for the first posting with units (amount)
+    # Look for the Assets/Liabilities posting first (has correct sign for transfers)
+    for posting in postings:
+        account_name = posting.get("account", "")
+        if account_name.startswith(("Assets:", "Liabilities:")):
+            if posting.get("units") and posting["units"].get("number"):
+                try:
+                    return Decimal(str(posting["units"]["number"]))
+                except (ValueError, TypeError):
+                    continue
+
+    # Fallback: look for the first posting with units (amount)
     for posting in postings:
         if posting.get("units") and posting["units"].get("number"):
             try:
