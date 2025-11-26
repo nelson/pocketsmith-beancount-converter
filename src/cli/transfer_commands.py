@@ -10,6 +10,12 @@ from ..transfers.detector import TransferDetector
 from ..transfers.models import DetectionCriteria
 from ..transfers.applier import TransferApplier
 from ..transfers.category_helper import find_transfer_category_id
+from ..transfers.interactive import InteractiveReviewer
+from ..transfers.config import (
+    load_criteria_from_config,
+    save_criteria_to_config,
+    get_config_path,
+)
 from ..beancount.read import read_ledger
 from ..compare.beancount import convert_beancount_list_to_model
 from beancount.core import data as bc_data
@@ -19,6 +25,7 @@ def detect_transfers_command(
     ledger: Optional[Path] = None,
     dry_run: bool = False,
     verbose: bool = False,
+    interactive: bool = True,
 ) -> None:
     """Detect and mark transfer transactions in the ledger.
 
@@ -108,9 +115,20 @@ def detect_transfers_command(
 
         typer.echo(f"Loaded {len(transactions)} transactions")
 
+        # Load or create criteria
+        config_path = get_config_path(ledger_path)
+        criteria = load_criteria_from_config(config_path)
+
+        if criteria:
+            if verbose:
+                typer.echo(f"\nLoaded criteria from {config_path}")
+        else:
+            criteria = DetectionCriteria()
+            if verbose:
+                typer.echo("\nUsing default criteria")
+
         # Run detection
         typer.echo("\nDetecting transfers...")
-        criteria = DetectionCriteria()
         detector = TransferDetector(criteria)
         result = detector.detect_transfers(transactions)
 
@@ -160,6 +178,44 @@ def detect_transfers_command(
                     typer.echo(f"    From:   {source_tx.account.get('name')}")
                 if dest_tx.account:
                     typer.echo(f"    To:     {dest_tx.account.get('name')}")
+
+        # Interactive review of suspected pairs
+        if interactive and result.suspected_pairs and not dry_run:
+            typer.echo()
+            typer.echo("=" * 60)
+            reviewer = InteractiveReviewer()
+            confirmed_from_review, rejected_from_review, updated_criteria = (
+                reviewer.review_suspected_pairs(result.suspected_pairs, criteria)
+            )
+
+            # Move confirmed pairs from suspected to confirmed
+            if confirmed_from_review:
+                result.confirmed_pairs.extend(confirmed_from_review)
+                # Remove from suspected
+                confirmed_ids = {
+                    (p.source_id, p.dest_id) for p in confirmed_from_review
+                }
+                result.suspected_pairs = [
+                    p
+                    for p in result.suspected_pairs
+                    if (p.source_id, p.dest_id) not in confirmed_ids
+                ]
+
+                # Update pairs to be confirmed transfers
+                for pair in confirmed_from_review:
+                    pair.confidence = "confirmed"
+                    pair.reason = None
+
+            # Save updated criteria if changed
+            if (
+                updated_criteria.max_date_difference_days
+                != criteria.max_date_difference_days
+                or updated_criteria.fx_amount_tolerance_percent
+                != criteria.fx_amount_tolerance_percent
+            ):
+                save_criteria_to_config(updated_criteria, config_path)
+                typer.echo()
+                typer.echo(f"[Config saved to {config_path}]")
 
         # Apply changes
         if not dry_run:

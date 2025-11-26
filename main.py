@@ -23,14 +23,6 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Create transfer sub-app
-transfer_app = typer.Typer(
-    name="transfer",
-    help="Detect and manage transfer transactions",
-    no_args_is_help=True,
-)
-app.add_typer(transfer_app, name="transfer")
-
 
 @app.command()
 def help() -> None:
@@ -44,7 +36,7 @@ def help() -> None:
     typer.echo("  diff    Compare local beancount ledger with remote PocketSmith data")
     typer.echo("  push    Upload local changes to PocketSmith")
     typer.echo("  rule    Manage transaction processing rules")
-    typer.echo("  transfer Detect and manage transfer transactions")
+    typer.echo("  detect-transfer Detect and mark transfer transactions")
     typer.echo("  help    Show this help message")
     typer.echo("")
     typer.echo("Use 'peabody COMMAND --help' for detailed help on any command.")
@@ -714,12 +706,10 @@ def rule_lookup(
     rule_lookup_command(merchant, category, account, rules)
 
 
-# Transfer commands
-@transfer_app.command("detect")
-def transfer_detect(
-    ledger: Optional[Path] = typer.Option(
+@app.command("detect-transfer")
+def detect_transfer(
+    ledger: Optional[Path] = typer.Argument(
         None,
-        "--ledger",
         help="File or directory to work with (defaults to current directory's beancount file)",
     ),
     dry_run: bool = typer.Option(
@@ -728,46 +718,34 @@ def transfer_detect(
     verbose: bool = typer.Option(
         False, "-v", "--verbose", help="Show detailed detection information"
     ),
+    no_interactive: bool = typer.Option(
+        False,
+        "--no-interactive",
+        help="Skip interactive review of suspected transfers",
+    ),
 ) -> None:
     """Detect and mark transfer transactions in the ledger.
 
     Analyzes transactions to find matching pairs that represent transfers
     between accounts. Confirmed transfers are marked with is_transfer=true
-    and forced to Expenses:Transfer category. Suspected transfers are
-    marked with paired metadata but keep their original category.
+    and forced to Expenses:Transfer category.
+
+    Suspected transfers trigger an interactive review where you can:
+    - Confirm them as transfers
+    - Reject them
+    - Skip for later review
+    - Adjust detection criteria based on patterns
+
+    Configuration is saved to transfer_config.yaml and persists between runs.
 
     Example:
-    peabody transfer detect
-    peabody transfer detect --dry-run
+    peabody detect-transfer
+    peabody detect-transfer --dry-run
+    peabody detect-transfer --no-interactive
     """
     from src.cli.transfer_commands import detect_transfers_command
 
-    detect_transfers_command(ledger, dry_run, verbose)
-
-
-@transfer_app.command("clear")
-def transfer_clear(
-    ledger: Optional[Path] = typer.Option(
-        None,
-        "--ledger",
-        help="File or directory to work with (defaults to current directory's beancount file)",
-    ),
-    dry_run: bool = typer.Option(
-        False, "-n", "--dry-run", help="Preview clearing without applying changes"
-    ),
-) -> None:
-    """Clear all transfer metadata from the ledger.
-
-    Removes is_transfer, paired, and suspect_reason metadata from all
-    transactions. Useful for re-running detection with different criteria.
-
-    Example:
-    peabody transfer clear
-    peabody transfer clear --dry-run
-    """
-    from src.cli.transfer_commands import clear_transfers_command
-
-    clear_transfers_command(ledger, dry_run)
+    detect_transfers_command(ledger, dry_run, verbose, interactive=not no_interactive)
 
 
 def main() -> None:
