@@ -116,6 +116,7 @@ class TransferApplier:
                     tx_entries_by_id[str(tx_id)] = entry
 
         # Apply confirmed transfers
+        updated_entries = []  # Track which entries were updated and their new versions
         for pair in result.confirmed_pairs:
             source_entry = tx_entries_by_id.get(pair.source_id)
             dest_entry = tx_entries_by_id.get(pair.dest_id)
@@ -123,18 +124,26 @@ class TransferApplier:
             if source_entry and dest_entry:
                 # Update metadata for both transactions
                 source_entry.meta["is_transfer"] = "true"
-                source_entry.meta["paired"] = int(pair.dest_id)
+                source_entry.meta["paired"] = str(pair.dest_id)  # Store as string for beancount compatibility
                 if "suspect_reason" in source_entry.meta:
                     del source_entry.meta["suspect_reason"]
 
                 dest_entry.meta["is_transfer"] = "true"
-                dest_entry.meta["paired"] = int(pair.source_id)
+                dest_entry.meta["paired"] = str(pair.source_id)  # Store as string for beancount compatibility
                 if "suspect_reason" in dest_entry.meta:
                     del dest_entry.meta["suspect_reason"]
 
                 # Update category account in postings for confirmed transfers
-                self._update_postings_to_transfer(source_entry)
-                self._update_postings_to_transfer(dest_entry)
+                new_source = self._update_postings_to_transfer(source_entry)
+                new_dest = self._update_postings_to_transfer(dest_entry)
+
+                # Track the replacements
+                updated_entries.append((source_entry, new_source))
+                updated_entries.append((dest_entry, new_dest))
+
+                # Update the lookup table
+                tx_entries_by_id[pair.source_id] = new_source
+                tx_entries_by_id[pair.dest_id] = new_dest
 
         # Apply suspected transfers
         for pair in result.suspected_pairs:
@@ -143,25 +152,33 @@ class TransferApplier:
 
             if source_entry and dest_entry:
                 # Update metadata but don't set is_transfer
-                source_entry.meta["paired"] = int(pair.dest_id)
+                source_entry.meta["paired"] = str(pair.dest_id)  # Store as string for beancount compatibility
                 source_entry.meta["suspect_reason"] = pair.reason or ""
                 if "is_transfer" in source_entry.meta:
                     del source_entry.meta["is_transfer"]
 
-                dest_entry.meta["paired"] = int(pair.source_id)
+                dest_entry.meta["paired"] = str(pair.source_id)  # Store as string for beancount compatibility
                 dest_entry.meta["suspect_reason"] = pair.reason or ""
                 if "is_transfer" in dest_entry.meta:
                     del dest_entry.meta["is_transfer"]
+
+        # Replace old entries with updated ones in the entries list
+        if updated_entries:
+            old_to_new = {id(old): new for old, new in updated_entries}
+            entries = [old_to_new.get(id(e), e) for e in entries]
 
         # Write back to files (in-place modification)
         if in_place:
             self._write_entries_to_files(entries, ledger_path)
 
-    def _update_postings_to_transfer(self, entry: bc_data.Transaction) -> None:
+    def _update_postings_to_transfer(self, entry: bc_data.Transaction) -> bc_data.Transaction:
         """Update transaction postings to use Expenses:Transfer category.
 
         Args:
             entry: Beancount transaction entry to modify
+
+        Returns:
+            New transaction with updated postings
         """
         from beancount.core.amount import Amount
 
@@ -174,8 +191,8 @@ class TransferApplier:
             else:
                 new_postings.append(posting)
 
-        # Replace postings list
-        object.__setattr__(entry, "postings", new_postings)
+        # Return new transaction with replaced postings
+        return entry._replace(postings=new_postings)
 
     def _write_entries_to_files(
         self,
@@ -193,12 +210,15 @@ class TransferApplier:
         from datetime import datetime
 
         # Group transactions by their source file
+        # Only include Transaction entries, skip Open/Commodity/etc from main.beancount
         entries_by_file: Dict[str, List[Any]] = defaultdict(list)
 
         for entry in entries:
-            if hasattr(entry, "meta") and "filename" in entry.meta:
+            if isinstance(entry, bc_data.Transaction) and hasattr(entry, "meta") and "filename" in entry.meta:
                 source_file = entry.meta["filename"]
-                entries_by_file[source_file].append(entry)
+                # Skip main.beancount - only write monthly files
+                if not source_file.endswith("main.beancount"):
+                    entries_by_file[source_file].append(entry)
 
         # Write each file
         for filepath, file_entries in entries_by_file.items():

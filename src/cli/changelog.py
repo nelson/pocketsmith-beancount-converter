@@ -1,6 +1,6 @@
 """Changelog management for clone and pull operations."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Tuple
 import re
@@ -17,7 +17,11 @@ class ChangelogEntry:
 
     def __str__(self) -> str:
         """Format the entry as a string."""
-        timestamp_str = self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        # Format with timezone info if present, otherwise use naive format for backward compat
+        if self.timestamp.tzinfo is not None:
+            timestamp_str = self.timestamp.strftime("%Y-%m-%d %H:%M:%S%z")
+        else:
+            timestamp_str = self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         parts = [f"[{timestamp_str}]", self.operation] + self.details
         return " ".join(parts)
 
@@ -34,7 +38,7 @@ class ChangelogManager:
     ) -> None:
         """Write a CLONE entry to the changelog."""
         entry = ChangelogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation="CLONE",
             details=[from_date or "", to_date or ""],
         )
@@ -45,7 +49,7 @@ class ChangelogManager:
     ) -> None:
         """Write a PULL entry to the changelog."""
         entry = ChangelogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation="PULL",
             details=[since, from_date or "", to_date or ""],
         )
@@ -56,7 +60,7 @@ class ChangelogManager:
     ) -> None:
         """Write a PUSH entry to the changelog."""
         entry = ChangelogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation="PUSH",
             details=[from_date or "", to_date or ""],
         )
@@ -67,7 +71,7 @@ class ChangelogManager:
     ) -> None:
         """Write an OVERWRITE entry to the changelog."""
         entry = ChangelogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation="OVERWRITE",
             details=[transaction_id, key, f"{old_value} → {new_value}"],
         )
@@ -78,7 +82,7 @@ class ChangelogManager:
     ) -> None:
         """Write an UPDATE entry to the changelog."""
         entry = ChangelogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation="UPDATE",
             details=[transaction_id, key, f"{old_value} → {new_value}"],
         )
@@ -89,7 +93,7 @@ class ChangelogManager:
     ) -> None:
         """Write an APPLY entry to the changelog for rule application."""
         entry = ChangelogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             operation="APPLY",
             details=[transaction_id, "RULE", str(rule_id), key, str(new_value)],
         )
@@ -155,13 +159,24 @@ class ChangelogManager:
                 if not line:
                     continue
 
-                # Parse timestamp
+                # Parse timestamp - support both naive and timezone-aware formats
+                # New format: [2025-11-27 12:00:14+0000] PULL ...
+                # Old format: [2025-11-27 12:00:14] PULL ...
                 match = re.match(
-                    r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+(\w+)\s*(.*)", line
+                    r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:[+-]\d{4})?)\]\s+(\w+)\s*(.*)",
+                    line,
                 )
                 if match:
                     timestamp_str, operation, details_str = match.groups()
-                    timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+
+                    # Parse timestamp with or without timezone
+                    if "+" in timestamp_str or "-" in timestamp_str[-5:]:
+                        # Has timezone (e.g., "2025-11-27 12:00:14+0000")
+                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S%z")
+                    else:
+                        # Naive timestamp (old format)
+                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+
                     details = details_str.split() if details_str else []
 
                     entries.append(
