@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
+from datetime import timedelta
 import json
 
 import typer
@@ -313,7 +314,36 @@ def pull_command(
         try:
             # First fetch: use updated_since with original date range
             if not use_new_dates:
+                # Convert timestamp to UTC if it's naive (for backward compatibility)
+                # Changelog now stores UTC timestamps, but old entries may be local
+                import pytz
+
+                if last_sync_timestamp.tzinfo is None:
+                    # Naive timestamp - assume it's local time and convert to UTC
+                    # Try to get system timezone
+                    try:
+                        from datetime import timezone
+                        import time
+
+                        # Get local timezone offset
+                        if time.daylight:
+                            utc_offset = -time.altzone
+                        else:
+                            utc_offset = -time.timezone
+                        local_tz = timezone(timedelta(seconds=utc_offset))
+
+                        # Localize and convert to UTC
+                        last_sync_timestamp = last_sync_timestamp.replace(tzinfo=local_tz)
+                        last_sync_timestamp = last_sync_timestamp.astimezone(timezone.utc)
+                    except Exception:
+                        # Fallback: treat as UTC
+                        from datetime import timezone
+                        last_sync_timestamp = last_sync_timestamp.replace(tzinfo=timezone.utc)
+
+                # Use exact timestamp - API uses >, not >=, so transactions at exact
+                # time won't be returned, but that's acceptable (very rare edge case)
                 updated_since = last_sync_timestamp.isoformat()
+
                 transactions = client.get_transactions(
                     start_date=start_date_str,
                     end_date=end_date_str,

@@ -144,16 +144,24 @@ def write_hierarchical_ledger(
         year_dir = output_path / year
         year_dir.mkdir(exist_ok=True)
 
-        # Convert transactions for this month
-        month_content = generate_monthly_transactions_content(
-            month_transactions, int(year), int(month)
-        )
-
-        # Write monthly file
+        # Monthly file handling with preservation
         monthly_filename = f"{year_month}.beancount"
         monthly_file_path = year_dir / monthly_filename
 
-        write_ledger(month_content, str(monthly_file_path))
+        if monthly_file_path.exists():
+            # Use text-based merging to preserve formatting
+            from .update import update_monthly_file_preserving_format
+
+            update_monthly_file_preserving_format(
+                monthly_file_path, month_transactions, int(year), int(month)
+            )
+        else:
+            # New file - generate normally
+            month_content = generate_monthly_transactions_content(
+                month_transactions, int(year), int(month)
+            )
+            write_ledger(month_content, str(monthly_file_path))
+
         written_files[f"{year}/{monthly_filename}"] = str(monthly_file_path)
 
     # Combine existing months with new months for includes
