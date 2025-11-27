@@ -183,9 +183,12 @@ class TransferApplier:
             old_to_new = {id(old): new for old, new in updated_entries}
             entries = [old_to_new.get(id(e), e) for e in entries]
 
-        # Write back to files (in-place modification)
-        if in_place:
-            self._write_entries_to_files(entries, ledger_path)
+            # Write back to files (in-place modification)
+            # Only write files that have modified transactions
+            if in_place:
+                # Get set of modified entry IDs
+                modified_entry_ids = {id(new) for old, new in updated_entries}
+                self._write_entries_to_files(entries, ledger_path, modified_entry_ids)
 
     def _update_postings_to_transfer(self, entry: bc_data.Transaction) -> bc_data.Transaction:
         """Update transaction postings to use Expenses:Transfer category.
@@ -213,21 +216,23 @@ class TransferApplier:
     def _write_entries_to_files(
         self,
         entries: List[Any],
-        ledger_path: Path
+        ledger_path: Path,
+        modified_entry_ids: set
     ) -> None:
-        """Write modified entries back to their source files.
+        """Write modified entries back to their source files using text-based updates.
 
         Args:
             entries: List of beancount entries to write
             ledger_path: Base ledger path (file or directory)
+            modified_entry_ids: Set of entry IDs that were modified
         """
-        from beancount.parser import printer
         from collections import defaultdict
-        from datetime import datetime
+        import re
 
         # Group transactions by their source file
-        # Only include Transaction entries, skip Open/Commodity/etc from main.beancount
+        # Track which files have modified transactions and which entries are modified
         entries_by_file: Dict[str, List[Any]] = defaultdict(list)
+        files_with_modifications: Dict[str, List[Any]] = {}  # file -> modified entries
 
         for entry in entries:
             if isinstance(entry, bc_data.Transaction) and hasattr(entry, "meta") and "filename" in entry.meta:
@@ -235,43 +240,189 @@ class TransferApplier:
                 # Skip main.beancount - only write monthly files
                 if not source_file.endswith("main.beancount"):
                     entries_by_file[source_file].append(entry)
+                    # Track if this entry was modified
+                    if id(entry) in modified_entry_ids:
+                        if source_file not in files_with_modifications:
+                            files_with_modifications[source_file] = []
+                        files_with_modifications[source_file].append(entry)
 
-        # Write each file
-        for filepath, file_entries in entries_by_file.items():
+        # Only write files that have modifications
+        for filepath, modified_entries in files_with_modifications.items():
             path = Path(filepath)
 
-            # Sort entries by date
+            # Read current file content
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Build map of transaction ID to line numbers
+            txn_line_map = self._build_transaction_line_map(lines)
+
+            # Convert modified entries to PocketSmith-style dicts for text generation
+            # Sort by line number in reverse order to maintain line indices
             sorted_entries = sorted(
-                file_entries,
-                key=lambda e: (
-                    getattr(e, "date", datetime.min.date()),
-                    getattr(e, "meta", {}).get("lineno", 0)
-                )
+                modified_entries,
+                key=lambda e: txn_line_map.get(str(e.meta.get("id")), (0, 0))[0],
+                reverse=True,
             )
 
-            # Generate beancount content
-            content_lines = []
-
-            # Add header if it's a monthly file
-            if path.stem.count("-") == 1:  # Format: YYYY-MM
-                year_month = path.stem
-                try:
-                    year, month = year_month.split("-")
-                    month_name = datetime(int(year), int(month), 1).strftime("%B %Y")
-                    content_lines.append(f"; Transactions for {month_name}")
-                    content_lines.append(
-                        f"; Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
-                    content_lines.append("")
-                except (ValueError, IndexError):
-                    pass
-
-            # Write each entry
+            # Apply updates
+            new_lines = lines[:]
             for entry in sorted_entries:
-                entry_str = printer.format_entry(entry)
-                content_lines.append(entry_str)
-                content_lines.append("")  # Blank line between entries
+                tx_id = str(entry.meta.get("id"))
+                if tx_id not in txn_line_map:
+                    continue
 
-            # Write to file
+                start_line, end_line = txn_line_map[tx_id]
+
+                # Generate new transaction content from the modified entry
+                new_txn_text = self._format_entry_as_text(entry)
+
+                # Build replacement lines
+                txn_lines = new_txn_text.split("\n")
+                replacement_lines = [line + "\n" for line in txn_lines]
+
+                # Check if original had a blank line at end_line
+                original_had_blank = new_lines[end_line].strip() == ""
+
+                # Check if this is not the last line in the file
+                not_last_line = end_line < len(new_lines) - 1
+
+                # Add blank line if original had one OR if there's content after this transaction
+                if original_had_blank or not_last_line:
+                    replacement_lines.append("\n")
+
+                new_lines[start_line : end_line + 1] = replacement_lines
+
+            # Write back
             with open(path, "w", encoding="utf-8") as f:
-                f.write("\n".join(content_lines))
+                f.writelines(new_lines)
+
+    def _build_transaction_line_map(self, lines: List[str]) -> Dict[str, tuple]:
+        """Build a map of transaction ID to line numbers.
+
+        Returns:
+            Dict mapping transaction_id -> (start_line_index, end_line_index)
+        """
+        import re
+
+        txn_map = {}
+        current_txn_start = None
+        current_txn_id = None
+        current_txn_last_content_line = None
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Detect start of transaction (date + flag + payee pattern)
+            if re.match(r"^\d{4}-\d{2}-\d{2}\s+[*!]", line):
+                # If we have a previous transaction, finalize it
+                if current_txn_start is not None and current_txn_id is not None:
+                    # Find the end: last posting line + any immediately following blank lines
+                    end_line = current_txn_last_content_line
+                    # Include blank lines immediately after the last posting
+                    j = current_txn_last_content_line + 1
+                    while j < i and lines[j].strip() == "":
+                        end_line = j
+                        j += 1
+
+                    txn_map[current_txn_id] = (current_txn_start, end_line)
+
+                current_txn_start = i
+                current_txn_id = None
+                current_txn_last_content_line = i
+
+            # Look for id metadata
+            if current_txn_start is not None:
+                id_match = re.search(r"^\s+id:\s+(\d+)", line)
+                if id_match:
+                    current_txn_id = id_match.group(1)
+
+                # Track last content line (metadata or posting)
+                if line.strip() and not line.strip().startswith(";"):
+                    current_txn_last_content_line = i
+
+            i += 1
+
+        # Handle last transaction
+        if current_txn_start is not None and current_txn_id is not None:
+            end_line = current_txn_last_content_line
+            # Include any trailing blank lines
+            j = current_txn_last_content_line + 1
+            while j < len(lines) and lines[j].strip() == "":
+                end_line = j
+                j += 1
+
+            txn_map[current_txn_id] = (current_txn_start, end_line)
+
+        return txn_map
+
+    def _format_entry_as_text(self, entry: bc_data.Transaction) -> str:
+        """Format a beancount transaction entry as text, preserving formatting.
+
+        Args:
+            entry: Beancount transaction entry
+
+        Returns:
+            Formatted transaction text
+        """
+        from beancount.core.amount import Amount
+        from decimal import Decimal
+
+        lines = []
+
+        # Transaction header: date flag "payee"
+        date_str = entry.date.strftime("%Y-%m-%d")
+        flag = entry.flag or "*"
+        payee = entry.payee or ""
+        lines.append(f'{date_str} {flag} "{payee}"')
+
+        # Add metadata (4 spaces, before postings)
+        meta = entry.meta or {}
+
+        # Add id
+        if "id" in meta:
+            lines.append(f"    id: {meta['id']}")
+
+        # Add is_transfer if present
+        if "is_transfer" in meta:
+            lines.append(f"    is_transfer: {meta['is_transfer']}")
+
+        # Add paired if present (should be Decimal type)
+        if "paired" in meta:
+            paired_val = meta["paired"]
+            # Handle both Decimal and other types
+            if isinstance(paired_val, Decimal):
+                lines.append(f"    paired: {paired_val}")
+            else:
+                # Convert to Decimal if needed
+                from ..beancount.common import convert_id_to_decimal
+                paired_decimal = convert_id_to_decimal(paired_val)
+                if paired_decimal is not None:
+                    lines.append(f"    paired: {paired_decimal}")
+
+        # Add suspect_reason if present
+        if "suspect_reason" in meta:
+            reason = meta["suspect_reason"]
+            if reason:  # Only add if not empty
+                lines.append(f'    suspect_reason: "{reason}"')
+
+        # Add postings (2 spaces, with aligned amounts)
+        if entry.postings:
+            # Calculate padding for amount alignment
+            max_account_len = max(len(p.account) for p in entry.postings)
+
+            for posting in entry.postings:
+                account = posting.account
+                amount = posting.units
+
+                if amount:
+                    # Calculate padding
+                    padding = max_account_len - len(account) + 2
+                    amount_str = f"{amount.number} {amount.currency}"
+                    lines.append(f"  {account}{' ' * padding}{amount_str}")
+                else:
+                    # Posting without amount
+                    lines.append(f"  {account}")
+
+        return "\n".join(lines)
