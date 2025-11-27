@@ -123,13 +123,21 @@ class TransferApplier:
 
             if source_entry and dest_entry:
                 # Update metadata for both transactions
+                from ..beancount.common import convert_id_to_decimal
+
                 source_entry.meta["is_transfer"] = "true"
-                source_entry.meta["paired"] = str(pair.dest_id)  # Store as string for beancount compatibility
+                # Store paired as Decimal for beancount compatibility
+                paired_dest = convert_id_to_decimal(pair.dest_id)
+                if paired_dest is not None:
+                    source_entry.meta["paired"] = paired_dest
                 if "suspect_reason" in source_entry.meta:
                     del source_entry.meta["suspect_reason"]
 
                 dest_entry.meta["is_transfer"] = "true"
-                dest_entry.meta["paired"] = str(pair.source_id)  # Store as string for beancount compatibility
+                # Store paired as Decimal for beancount compatibility
+                paired_source = convert_id_to_decimal(pair.source_id)
+                if paired_source is not None:
+                    dest_entry.meta["paired"] = paired_source
                 if "suspect_reason" in dest_entry.meta:
                     del dest_entry.meta["suspect_reason"]
 
@@ -152,12 +160,20 @@ class TransferApplier:
 
             if source_entry and dest_entry:
                 # Update metadata but don't set is_transfer
-                source_entry.meta["paired"] = str(pair.dest_id)  # Store as string for beancount compatibility
+                from ..beancount.common import convert_id_to_decimal
+
+                # Store paired as Decimal for beancount compatibility
+                paired_dest = convert_id_to_decimal(pair.dest_id)
+                if paired_dest is not None:
+                    source_entry.meta["paired"] = paired_dest
                 source_entry.meta["suspect_reason"] = pair.reason or ""
                 if "is_transfer" in source_entry.meta:
                     del source_entry.meta["is_transfer"]
 
-                dest_entry.meta["paired"] = str(pair.source_id)  # Store as string for beancount compatibility
+                # Store paired as Decimal for beancount compatibility
+                paired_source = convert_id_to_decimal(pair.source_id)
+                if paired_source is not None:
+                    dest_entry.meta["paired"] = paired_source
                 dest_entry.meta["suspect_reason"] = pair.reason or ""
                 if "is_transfer" in dest_entry.meta:
                     del dest_entry.meta["is_transfer"]

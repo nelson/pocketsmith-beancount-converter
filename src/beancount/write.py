@@ -471,7 +471,10 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
 
         paired = transaction.get("paired")
         if paired is not None:
-            lines.append(f"    paired: {int(paired)}")
+            # Support Decimal type for paired metadata as per beancount spec
+            paired_decimal = convert_id_to_decimal(paired)
+            if paired_decimal is not None:
+                lines.append(f"    paired: {paired_decimal}")
 
         suspect_reason = transaction.get("suspect_reason")
         if suspect_reason:
@@ -515,13 +518,27 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         else:
             category_account = get_category_account_from_category(category or {})
 
-        # Add postings
+        # Add postings with aligned amounts
+        # Calculate padding needed to align amounts
         if amount > 0:
-            lines.append(f"  {account_name}  {amount} {currency}")
-            lines.append(f"  {category_account}  -{amount} {currency}")
+            posting1_account = account_name
+            posting1_amount = f"{amount} {currency}"
+            posting2_account = category_account
+            posting2_amount = f"-{amount} {currency}"
         else:
-            lines.append(f"  {category_account}  {abs(amount)} {currency}")
-            lines.append(f"  {account_name}  -{abs(amount)} {currency}")
+            posting1_account = category_account
+            posting1_amount = f"{abs(amount)} {currency}"
+            posting2_account = account_name
+            posting2_amount = f"-{abs(amount)} {currency}"
+
+        # Find the longer account name to determine padding
+        max_account_len = max(len(posting1_account), len(posting2_account))
+        # Use 2 spaces for padding between account and amount
+        padding1 = max_account_len - len(posting1_account) + 2
+        padding2 = max_account_len - len(posting2_account) + 2
+
+        lines.append(f"  {posting1_account}{' ' * padding1}{posting1_amount}")
+        lines.append(f"  {posting2_account}{' ' * padding2}{posting2_amount}")
 
         return "\n".join(lines)
 
