@@ -518,27 +518,38 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         else:
             category_account = get_category_account_from_category(category or {})
 
-        # Add postings with aligned amounts
-        # Calculate padding needed to align amounts
+        # Add postings with decimal-aligned amounts
         if amount > 0:
             posting1_account = account_name
-            posting1_amount = f"{amount} {currency}"
+            posting1_number = amount
             posting2_account = category_account
-            posting2_amount = f"-{amount} {currency}"
+            posting2_number = -amount
         else:
             posting1_account = category_account
-            posting1_amount = f"{abs(amount)} {currency}"
+            posting1_number = abs(amount)
             posting2_account = account_name
-            posting2_amount = f"-{abs(amount)} {currency}"
+            posting2_number = -abs(amount)
 
-        # Find the longer account name to determine padding
+        # Calculate alignment for decimal points
         max_account_len = max(len(posting1_account), len(posting2_account))
-        # Use 2 spaces for padding between account and amount
-        padding1 = max_account_len - len(posting1_account) + 2
-        padding2 = max_account_len - len(posting2_account) + 2
 
-        lines.append(f"  {posting1_account}{' ' * padding1}{posting1_amount}")
-        lines.append(f"  {posting2_account}{' ' * padding2}{posting2_amount}")
+        # Find integer part lengths for decimal alignment
+        amount_str1 = str(posting1_number)
+        amount_str2 = str(posting2_number)
+
+        # Get integer part lengths (before decimal point)
+        int_len1 = len(amount_str1.split('.')[0]) if '.' in amount_str1 else len(amount_str1)
+        int_len2 = len(amount_str2.split('.')[0]) if '.' in amount_str2 else len(amount_str2)
+        max_int_len = max(int_len1, int_len2)
+
+        # Format postings with aligned decimal points
+        account_padding1 = max_account_len - len(posting1_account) + 2
+        int_padding1 = max_int_len - int_len1
+        lines.append(f"  {posting1_account}{' ' * account_padding1}{' ' * int_padding1}{amount_str1} {currency}")
+
+        account_padding2 = max_account_len - len(posting2_account) + 2
+        int_padding2 = max_int_len - int_len2
+        lines.append(f"  {posting2_account}{' ' * account_padding2}{' ' * int_padding2}{amount_str2} {currency}")
 
         return "\n".join(lines)
 
