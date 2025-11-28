@@ -28,7 +28,7 @@ def _build_updates_from_changes(changes: List[Tuple[str, str, str]]) -> Dict[str
     Input is list of (field, local_value, remote_value). Use local_value.
     """
     updates: Dict[str, Any] = {}
-    ALLOWED_FIELDS = {"note", "memo", "labels", "tags", "category_id"}
+    ALLOWED_FIELDS = {"note", "memo", "labels", "tags", "category_id", "is_transfer"}
 
     for field, local_val, _remote_val in changes:
         key = field
@@ -43,6 +43,12 @@ def _build_updates_from_changes(changes: List[Tuple[str, str, str]]) -> Dict[str
             except ValueError:
                 # Leave as string; API will reject if invalid
                 value = local_val
+        elif field.lower() == "is_transfer":
+            # Convert string "true"/"false" to boolean
+            if isinstance(local_val, str):
+                value = local_val.lower() in ("true", "1", "yes")
+            else:
+                value = bool(local_val)
         elif field.lower() in ("labels",):
             # Expect JSON-encoded array strings from comparator; try to eval via json
             import json

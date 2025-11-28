@@ -226,9 +226,16 @@ def _insert_new_transactions(
         # Generate transaction content
         new_txn_text = convert_transaction_to_beancount(txn)
 
-        # Insert with blank line after
-        new_lines.insert(insertion_line, new_txn_text + "\n")
-        new_lines.insert(insertion_line + 1, "\n")
+        # Split into lines and add newlines
+        txn_lines = new_txn_text.split("\n")
+        lines_to_insert = [line + "\n" for line in txn_lines]
+
+        # Add blank line after transaction
+        lines_to_insert.append("\n")
+
+        # Insert all lines at once
+        for idx, line_to_insert in enumerate(lines_to_insert):
+            new_lines.insert(insertion_line + idx, line_to_insert)
 
     return new_lines
 

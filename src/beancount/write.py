@@ -425,9 +425,12 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         payee = (transaction.get("merchant") or transaction.get("payee") or "").replace(
             '"', '\\"'
         )
-        narration = (transaction.get("note") or transaction.get("memo") or "").replace(
-            '"', '\\"'
-        )
+
+        # Decode metadata from note field during pull/clone
+        from ..pocketsmith.metadata_encoding import decode_metadata_from_note
+        raw_note = transaction.get("note") or transaction.get("memo") or ""
+        clean_note, note_metadata = decode_metadata_from_note(raw_note)
+        narration = (clean_note or "").replace('"', '\\"')
 
         # Fallback logic for empty fields
         if not payee:
@@ -466,17 +469,20 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
                 pass
 
         # Add transfer metadata if present
+        # Priority: decoded note metadata > transaction dict values
         if transaction.get("is_transfer"):
             lines.append('    is_transfer: "true"')
 
-        paired = transaction.get("paired")
+        # Use paired from decoded note metadata if available, otherwise from transaction dict
+        paired = note_metadata.get("paired") or transaction.get("paired")
         if paired is not None:
             # Support Decimal type for paired metadata as per beancount spec
             paired_decimal = convert_id_to_decimal(paired)
             if paired_decimal is not None:
                 lines.append(f"    paired: {paired_decimal}")
 
-        suspect_reason = transaction.get("suspect_reason")
+        # Use suspect_reason from decoded note metadata if available, otherwise from transaction dict
+        suspect_reason = note_metadata.get("suspect_reason") or transaction.get("suspect_reason")
         if suspect_reason:
             lines.append(f'    suspect_reason: "{suspect_reason}"')
             # Also add human-readable comment after the transaction header
