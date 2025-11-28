@@ -358,7 +358,13 @@ class TransferApplier:
         return txn_map
 
     def _format_entry_as_text(self, entry: bc_data.Transaction) -> str:
-        """Format a beancount transaction entry as text, preserving formatting.
+        """Format a beancount transaction entry as text, preserving ALL details.
+
+        Preserves:
+        - Payee and narration
+        - All tags and links
+        - All metadata fields (not just transfer-related ones)
+        - Posting amounts aligned by decimal point
 
         Args:
             entry: Beancount transaction entry
@@ -371,58 +377,121 @@ class TransferApplier:
 
         lines = []
 
-        # Transaction header: date flag "payee"
+        # Transaction header: date flag "payee" "narration" tags/links
         date_str = entry.date.strftime("%Y-%m-%d")
         flag = entry.flag or "*"
         payee = entry.payee or ""
-        lines.append(f'{date_str} {flag} "{payee}"')
+        narration = entry.narration or ""
+
+        # Build header line with payee and narration
+        header = f'{date_str} {flag} "{payee}" "{narration}"'
+
+        # Add tags (sorted for consistency)
+        if entry.tags:
+            sorted_tags = sorted(entry.tags)
+            header += " " + " ".join(f"#{tag}" for tag in sorted_tags)
+
+        # Add links (sorted for consistency)
+        if entry.links:
+            sorted_links = sorted(entry.links)
+            header += " " + " ".join(f"^{link}" for link in sorted_links)
+
+        lines.append(header)
 
         # Add metadata (4 spaces, before postings)
+        # Preserve ALL metadata fields, not just specific ones
         meta = entry.meta or {}
 
-        # Add id
-        if "id" in meta:
-            lines.append(f"    id: {meta['id']}")
+        # Define the order for known metadata fields
+        # Transfer-specific fields should come after standard beancount fields
+        known_fields_order = [
+            "id",
+            "last_modified",
+            "closing_balance",
+            "is_transfer",
+            "paired",
+            "suspect_reason",
+        ]
 
-        # Add is_transfer if present
-        if "is_transfer" in meta:
-            lines.append(f"    is_transfer: {meta['is_transfer']}")
+        # Internal beancount metadata to skip
+        skip_fields = {"filename", "lineno", "__tolerances__"}
 
-        # Add paired if present (should be Decimal type)
-        if "paired" in meta:
-            paired_val = meta["paired"]
-            # Handle both Decimal and other types
-            if isinstance(paired_val, Decimal):
-                lines.append(f"    paired: {paired_val}")
-            else:
-                # Convert to Decimal if needed
-                from ..beancount.common import convert_id_to_decimal
-                paired_decimal = convert_id_to_decimal(paired_val)
-                if paired_decimal is not None:
-                    lines.append(f"    paired: {paired_decimal}")
+        # First, add known fields in order
+        for field in known_fields_order:
+            if field in meta and field not in skip_fields:
+                value = meta[field]
 
-        # Add suspect_reason if present
-        if "suspect_reason" in meta:
-            reason = meta["suspect_reason"]
-            if reason:  # Only add if not empty
-                lines.append(f'    suspect_reason: "{reason}"')
+                # Special handling for different value types
+                if isinstance(value, Decimal):
+                    lines.append(f"    {field}: {value}")
+                elif isinstance(value, str):
+                    # String values need quotes
+                    lines.append(f'    {field}: "{value}"')
+                else:
+                    # Numbers, booleans, etc.
+                    lines.append(f"    {field}: {value}")
 
-        # Add postings (2 spaces, with aligned amounts)
+        # Then add any other metadata fields not in the known list
+        for field, value in sorted(meta.items()):
+            if field not in known_fields_order and field not in skip_fields:
+                if isinstance(value, Decimal):
+                    lines.append(f"    {field}: {value}")
+                elif isinstance(value, str):
+                    lines.append(f'    {field}: "{value}"')
+                else:
+                    lines.append(f"    {field}: {value}")
+
+        # Add postings (2 spaces, with amounts aligned by decimal point)
         if entry.postings:
-            # Calculate padding for amount alignment
-            max_account_len = max(len(p.account) for p in entry.postings)
+            # First pass: collect all posting info and find alignment position
+            posting_info = []
+            max_account_len = 0
+            max_amount_int_len = 0  # Length of integer part (before decimal)
 
             for posting in entry.postings:
                 account = posting.account
-                amount = posting.units
+                max_account_len = max(max_account_len, len(account))
 
-                if amount:
-                    # Calculate padding
-                    padding = max_account_len - len(account) + 2
-                    amount_str = f"{amount.number} {amount.currency}"
-                    lines.append(f"  {account}{' ' * padding}{amount_str}")
+                if posting.units:
+                    amount_str = str(posting.units.number)
+                    # Find integer part length (before decimal point or entire number)
+                    if '.' in amount_str:
+                        int_part = amount_str.split('.')[0]
+                    else:
+                        int_part = amount_str
+
+                    # Handle negative sign
+                    int_len = len(int_part)
+                    max_amount_int_len = max(max_amount_int_len, int_len)
+
+                    posting_info.append({
+                        'account': account,
+                        'number': posting.units.number,
+                        'currency': posting.units.currency,
+                        'amount_str': amount_str,
+                        'int_len': int_len
+                    })
+                else:
+                    posting_info.append({
+                        'account': account,
+                        'number': None
+                    })
+
+            # Second pass: format with aligned decimal points
+            for info in posting_info:
+                if info['number'] is not None:
+                    # Calculate padding: account + 2 spaces minimum
+                    account_padding = max_account_len - len(info['account']) + 2
+
+                    # Align decimal points by right-aligning the integer part
+                    int_padding = max_amount_int_len - info['int_len']
+
+                    amount_str = info['amount_str']
+                    padded_amount = ' ' * int_padding + amount_str
+
+                    lines.append(f"  {info['account']}{' ' * account_padding}{padded_amount} {info['currency']}")
                 else:
                     # Posting without amount
-                    lines.append(f"  {account}")
+                    lines.append(f"  {info['account']}")
 
         return "\n".join(lines)
