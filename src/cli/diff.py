@@ -106,6 +106,7 @@ class DiffComparator:
             ("labels", "labels"),
             ("note", "note"),
             ("merchant", "merchant"),
+            ("is_transfer", "is_transfer"),
         ]
 
         for field, display_name in fields_to_check:
@@ -285,13 +286,34 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
             if category_account:
                 category_id = category_id_map.get(category_account)
 
+            # Encode transfer metadata into note field
+            from ..pocketsmith.metadata_encoding import encode_metadata_in_note
+
+            transfer_metadata = {}
+            if meta.get("paired") is not None:
+                transfer_metadata["paired"] = int(str(meta["paired"]))
+            if meta.get("suspect_reason"):
+                transfer_metadata["suspect_reason"] = str(meta["suspect_reason"])
+
+            # Encode metadata into narration
+            note_with_metadata = encode_metadata_in_note(narration, transfer_metadata)
+
+            # Get is_transfer from metadata
+            is_transfer_val = meta.get("is_transfer")
+            # Normalize to boolean for comparison
+            if isinstance(is_transfer_val, str):
+                is_transfer = is_transfer_val.lower() in ("true", "1", "yes")
+            else:
+                is_transfer = bool(is_transfer_val) if is_transfer_val is not None else False
+
             local[tx_id] = {
                 "amount": amount_val,
                 "payee": payee,
                 "merchant": payee,
                 "category_id": category_id,
                 "labels": sorted(list(labels)),
-                "note": narration,
+                "note": note_with_metadata,
+                "is_transfer": is_transfer,
             }
 
     return local
