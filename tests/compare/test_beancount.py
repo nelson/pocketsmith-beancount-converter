@@ -69,7 +69,7 @@ class TestConvertBeancountToModel:
         assert transaction.amount == Decimal("100.50")
         assert transaction.date == date(2024, 1, 15)
         assert transaction.currency_code == "USD"
-        assert transaction.merchant == "Test Merchant"
+        # merchant field removed - now only using payee
         assert transaction.payee == "Test Merchant"
         assert transaction.note == "Test transaction"
         assert transaction.memo == "Test transaction"
@@ -107,7 +107,7 @@ class TestConvertBeancountToModel:
         transaction = convert_beancount_to_model(beancount_data)
 
         # Empty/whitespace strings should become None
-        assert transaction.merchant is None
+        # merchant field removed - now only using payee
         assert transaction.payee is None
         assert transaction.note is None
         assert transaction.memo is None
@@ -121,7 +121,7 @@ class TestConvertBeancountToModel:
         assert transaction.id == ""
         assert transaction.amount == Decimal("0")
         assert transaction.currency_code == "USD"  # Default fallback
-        assert transaction.merchant is None
+        # merchant field removed - now only using payee
         assert transaction.account is None
         assert transaction.category is None
         assert transaction.needs_review is False  # Default

@@ -88,6 +88,34 @@ class DiffComparator:
                 # This shouldn't happen if pull was done correctly
                 pass
 
+    def _normalize_value(self, value: Any, field: str) -> Any:
+        """Normalize value for semantic comparison.
+
+        Args:
+            value: The value to normalize
+            field: The field name (for field-specific normalization)
+
+        Returns:
+            Normalized value for comparison
+        """
+        # Special handling for is_transfer first (before general None handling)
+        if field == "is_transfer":
+            # Both None and False mean "not a transfer"
+            # Normalize both to False for comparison
+            if (
+                value is None
+                or value is False
+                or (isinstance(value, str) and value.lower() in ("false", "0", ""))
+            ):
+                return False
+            return bool(value)
+
+        # Treat None, empty string, and empty list as equivalent "unset" values
+        if value is None or value == "" or value == []:
+            return None
+
+        return value
+
     def _detect_differences(
         self, transaction_id: str, local: Dict[str, Any], remote: Dict[str, Any]
     ) -> List[Tuple[str, str, str]]:
@@ -105,7 +133,6 @@ class DiffComparator:
             ("category_id", "category"),
             ("labels", "labels"),
             ("note", "note"),
-            ("merchant", "merchant"),
             ("is_transfer", "is_transfer"),
         ]
 
@@ -125,14 +152,19 @@ class DiffComparator:
                             json.dumps(remote_value),
                         )
                     )
-            elif local_value != remote_value:
-                differences.append(
-                    (
-                        display_name,
-                        str(local_value) if local_value is not None else "null",
-                        str(remote_value) if remote_value is not None else "null",
+            else:
+                # Normalize values for semantic equivalence
+                normalized_local = self._normalize_value(local_value, field)
+                normalized_remote = self._normalize_value(remote_value, field)
+
+                if normalized_local != normalized_remote:
+                    differences.append(
+                        (
+                            display_name,
+                            str(local_value) if local_value is not None else "null",
+                            str(remote_value) if remote_value is not None else "null",
+                        )
                     )
-                )
 
         return differences
 
@@ -202,7 +234,7 @@ class DiffComparator:
 def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str, Any]]:
     """Read transactions from beancount and map to comparable local fields.
 
-    Produces mapping: id -> {amount, payee, merchant, category_id, labels, note}
+    Produces mapping: id -> {amount, payee, category_id, labels, note}
     """
     # Determine the main file to parse
     ledger_file = path if single_file else (path / "main.beancount")
@@ -262,22 +294,24 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
                         num = 0.0
 
                 if acct.startswith(("Assets:", "Liabilities:")):
-                    amount_val = abs(num)
+                    # Preserve sign from Assets/Liabilities posting to match PocketSmith API
+                    # where negative = debit (money out), positive = credit (money in)
+                    amount_val = num
                 elif acct.startswith(("Expenses:", "Income:", "Transfers:")):
                     category_account = acct
 
-            # Fallback amount: take first posting absolute value
+            # Fallback amount: take first posting with preserved sign
             if amount_val is None and entry.postings:
                 p0 = entry.postings[0]
                 if p0.units is not None:
                     n0 = p0.units.number
                     if isinstance(n0, Decimal):
-                        amount_val = abs(float(n0))
+                        amount_val = float(n0)
                     elif n0 is None:
                         amount_val = None
                     else:
                         try:
-                            amount_val = abs(float(n0))
+                            amount_val = float(n0)
                         except Exception:
                             amount_val = None
 
@@ -304,12 +338,13 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
             if isinstance(is_transfer_val, str):
                 is_transfer = is_transfer_val.lower() in ("true", "1", "yes")
             else:
-                is_transfer = bool(is_transfer_val) if is_transfer_val is not None else False
+                is_transfer = (
+                    bool(is_transfer_val) if is_transfer_val is not None else False
+                )
 
             local[tx_id] = {
                 "amount": amount_val,
                 "payee": payee,
-                "merchant": payee,
                 "category_id": category_id,
                 "labels": sorted(list(labels)),
                 "note": note_with_metadata,

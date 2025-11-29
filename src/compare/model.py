@@ -27,7 +27,6 @@ class Transaction:
     currency_code: str
 
     # Basic transaction info
-    merchant: Optional[str] = None
     payee: Optional[str] = None
     note: Optional[str] = None
     memo: Optional[str] = None
@@ -92,7 +91,6 @@ class Transaction:
             if isinstance(self.date, date)
             else self.date,
             "currency_code": self.currency_code,
-            "merchant": self.merchant,
             "payee": self.payee,
             "note": self.note,
             "memo": self.memo,
@@ -138,7 +136,6 @@ class Transaction:
             amount=Decimal(str(data["amount"])),
             date=data["date"],
             currency_code=data["currency_code"],
-            merchant=data.get("merchant"),
             payee=data.get("payee"),
             note=data.get("note"),
             memo=data.get("memo"),
