@@ -172,10 +172,14 @@ class ChangelogManager:
                     # Parse timestamp with or without timezone
                     if "+" in timestamp_str or "-" in timestamp_str[-5:]:
                         # Has timezone (e.g., "2025-11-27 12:00:14+0000")
-                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S%z")
+                        timestamp = datetime.strptime(
+                            timestamp_str, "%Y-%m-%d %H:%M:%S%z"
+                        )
                     else:
                         # Naive timestamp (old format)
-                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+                        timestamp = datetime.strptime(
+                            timestamp_str, "%Y-%m-%d %H:%M:%S"
+                        )
 
                     details = details_str.split() if details_str else []
 

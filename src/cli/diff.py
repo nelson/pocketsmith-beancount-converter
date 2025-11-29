@@ -30,7 +30,7 @@ from beancount.core import data as bc_data
 from decimal import Decimal
 
 
-class LocalTransactionMap(dict):
+class LocalTransactionMap(Dict[str, Dict[str, Any]]):
     """Dictionary of local transactions that preserves category metadata."""
 
     def __init__(self) -> None:
@@ -409,7 +409,7 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
             # Encode transfer metadata into note field
             from ..pocketsmith.metadata_encoding import encode_metadata_in_note
 
-            transfer_metadata = {}
+            transfer_metadata: Dict[str, Any] = {}
             if meta.get("paired") is not None:
                 transfer_metadata["paired"] = int(str(meta["paired"]))
             if meta.get("suspect_reason"):
@@ -428,8 +428,17 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
                     bool(is_transfer_val) if is_transfer_val is not None else False
                 )
 
-            source_filename = meta.get("filename")
-            source_lineno = meta.get("lineno")
+            source_filename_val = meta.get("filename")
+            source_filename: Optional[str] = (
+                str(source_filename_val) if source_filename_val is not None else None
+            )
+            source_lineno_val = meta.get("lineno")
+            source_lineno: Optional[int] = None
+            if source_lineno_val is not None:
+                try:
+                    source_lineno = int(str(source_lineno_val))
+                except Exception:
+                    source_lineno = None
 
             local_entry = {
                 "amount": amount_val,
@@ -440,12 +449,9 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
                 "is_transfer": is_transfer,
             }
             if source_filename:
-                local_entry["source_filename"] = str(source_filename)
-            if source_lineno:
-                try:
-                    local_entry["source_lineno"] = int(source_lineno)
-                except Exception:
-                    pass
+                local_entry["source_filename"] = source_filename
+            if source_lineno is not None:
+                local_entry["source_lineno"] = source_lineno
 
             local[tx_id] = local_entry
 

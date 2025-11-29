@@ -316,7 +316,6 @@ def pull_command(
             if not use_new_dates:
                 # Convert timestamp to UTC if it's naive (for backward compatibility)
                 # Changelog now stores UTC timestamps, but old entries may be local
-                import pytz
 
                 if last_sync_timestamp.tzinfo is None:
                     # Naive timestamp - assume it's local time and convert to UTC
@@ -333,12 +332,19 @@ def pull_command(
                         local_tz = timezone(timedelta(seconds=utc_offset))
 
                         # Localize and convert to UTC
-                        last_sync_timestamp = last_sync_timestamp.replace(tzinfo=local_tz)
-                        last_sync_timestamp = last_sync_timestamp.astimezone(timezone.utc)
+                        last_sync_timestamp = last_sync_timestamp.replace(
+                            tzinfo=local_tz
+                        )
+                        last_sync_timestamp = last_sync_timestamp.astimezone(
+                            timezone.utc
+                        )
                     except Exception:
                         # Fallback: treat as UTC
                         from datetime import timezone
-                        last_sync_timestamp = last_sync_timestamp.replace(tzinfo=timezone.utc)
+
+                        last_sync_timestamp = last_sync_timestamp.replace(
+                            tzinfo=timezone.utc
+                        )
 
                 # Use exact timestamp - API uses >, not >=, so transactions at exact
                 # time won't be returned, but that's acceptable (very rare edge case)

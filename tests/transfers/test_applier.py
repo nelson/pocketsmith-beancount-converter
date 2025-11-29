@@ -1,17 +1,12 @@
 """Tests for transfer applier to ensure all transaction details are preserved."""
 
-import pytest
 from decimal import Decimal
 from datetime import date
-from pathlib import Path
-import tempfile
-import textwrap
 
 from beancount.core import data as bc_data
 from beancount.core.amount import Amount
 
 from src.transfers.applier import TransferApplier
-from src.transfers.models import DetectionResult, TransferPair
 
 
 class TestTransferApplierPreservation:
@@ -300,11 +295,15 @@ class TestTransferApplierPreservation:
             assert expected in result_lines, f"Expected line not found: {expected}"
 
         # Verify decimal alignment - both decimals should be at same position
-        posting_lines = [line for line in result_lines if line.startswith("  ") and "AUD" in line]
+        posting_lines = [
+            line for line in result_lines if line.startswith("  ") and "AUD" in line
+        ]
         assert len(posting_lines) == 2, "Should have 2 posting lines"
 
         decimal_positions = [line.index(".") for line in posting_lines]
-        assert len(set(decimal_positions)) == 1, f"Decimal points must align, got positions: {decimal_positions}"
+        assert len(set(decimal_positions)) == 1, (
+            f"Decimal points must align, got positions: {decimal_positions}"
+        )
 
     def test_metadata_ordering(self):
         """Test that metadata fields appear in the correct order."""
@@ -346,10 +345,10 @@ class TestTransferApplierPreservation:
 
         for i, expected_field in enumerate(expected_order):
             # Find the line with this field
-            matching_lines = [line for line in meta_lines if line.startswith(expected_field)]
+            matching_lines = [
+                line for line in meta_lines if line.startswith(expected_field)
+            ]
             if matching_lines:
                 actual_index = meta_lines.index(matching_lines[0])
                 # Check that it appears in order (allowing for missing fields)
-                assert (
-                    actual_index >= i
-                ), f"{expected_field} appears out of order"
+                assert actual_index >= i, f"{expected_field} appears out of order"

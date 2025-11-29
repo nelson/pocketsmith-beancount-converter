@@ -16,7 +16,7 @@ from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Dict, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Set, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..compare.model import Transaction
@@ -32,7 +32,7 @@ class TransactionIndexOption1:
 
         self._build_indices()
 
-    def _build_indices(self):
+    def _build_indices(self) -> None:
         """Build both indices. O(n log n)"""
         # Build date index: O(n)
         for txn in self.transactions:
@@ -40,17 +40,14 @@ class TransactionIndexOption1:
             self.date_index[txn_date].append(txn)
 
         # Build amount index: O(n log n)
-        self.amount_index = [
-            (abs(txn.amount), txn)
-            for txn in self.transactions
-        ]
+        self.amount_index = [(abs(txn.amount), txn) for txn in self.transactions]
         self.amount_index.sort(key=lambda x: x[0])
 
     def find_candidates(
         self,
         txn: "Transaction",
         max_days: int,
-        amount_tolerance_percent: Decimal = Decimal("0")
+        amount_tolerance_percent: Decimal = Decimal("0"),
     ) -> List["Transaction"]:
         """Find candidate matches for a transaction.
 
@@ -59,7 +56,7 @@ class TransactionIndexOption1:
         - Have matching amount (within tolerance)
         - Are from different account
         """
-        candidates = []
+        candidates: List["Transaction"] = []
 
         # 1. Find amount range
         amount = abs(txn.amount)
@@ -69,18 +66,15 @@ class TransactionIndexOption1:
 
         # 2. Binary search for amount range in sorted list
         # Custom comparison for bisect with tuple keys
-        left_idx = bisect_left(self.amount_index, (min_amount, ))
-        right_idx = bisect_right(self.amount_index, (max_amount, ))
+        left_idx = bisect_left(self.amount_index, (min_amount,))
+        right_idx = bisect_right(self.amount_index, (max_amount,))
 
-        amount_matches = [
-            t for _, t in self.amount_index[left_idx:right_idx]
-        ]
+        amount_matches = [t for _, t in self.amount_index[left_idx:right_idx]]
 
         # 3. Filter by date window
         txn_date = self._parse_date(txn.date)
-        date_range = set(
-            txn_date + timedelta(days=d)
-            for d in range(-max_days, max_days + 1)
+        date_range: Set[date] = set(
+            txn_date + timedelta(days=d) for d in range(-max_days, max_days + 1)
         )
 
         # 4. Combine: candidates must be in both amount AND date matches
@@ -103,12 +97,13 @@ class TransactionIndexOption1:
 
         return candidates
 
-    def _parse_date(self, date_value) -> date:
+    def _parse_date(self, date_value: Any) -> date:
         """Parse date from various formats."""
         if isinstance(date_value, date):
             return date_value
         if isinstance(date_value, str):
             from datetime import datetime
+
             return datetime.fromisoformat(date_value.replace("Z", "+00:00")).date()
         raise ValueError(f"Cannot parse date: {date_value}")
 

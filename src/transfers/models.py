@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from typing import Optional, List
-from datetime import date
 from decimal import Decimal
 
 from ..compare.model import Transaction
@@ -13,9 +12,9 @@ class TransferPair:
     """Represents a matched pair of transfer transactions."""
 
     source_transaction: Transaction  # Money leaving account
-    dest_transaction: Transaction    # Money entering account
-    confidence: str                   # "confirmed" or "suspected"
-    reason: Optional[str] = None      # For suspected: why it's suspect
+    dest_transaction: Transaction  # Money entering account
+    confidence: str  # "confirmed" or "suspected"
+    reason: Optional[str] = None  # For suspected: why it's suspect
 
     @property
     def source_id(self) -> str:
@@ -51,12 +50,12 @@ class DetectionCriteria:
     fx_amount_tolerance_percent: Decimal = Decimal("5.0")  # 5% for FX fees
 
     # Name variations for description matching
-    name_variations: List[str] = None  # type: ignore
+    name_variations: Optional[List[str]] = None
 
     # Accounts with foreign currency (for FX tolerance)
-    fx_enabled_accounts: List[str] = None  # type: ignore
+    fx_enabled_accounts: Optional[List[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.name_variations is None:
             self.name_variations = [
                 "Lok Sun Nelson Tam",

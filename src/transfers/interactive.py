@@ -1,6 +1,6 @@
 """Interactive mode for reviewing suspected transfers."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt, Confirm
@@ -42,12 +42,14 @@ class InteractiveReviewer:
         )
         self.console.print()
 
-        confirmed = []
-        rejected = []
-        pattern_suggestions = {}
+        confirmed: List[TransferPair] = []
+        rejected: List[TransferPair] = []
+        pattern_suggestions: Dict[str, Any] = {}
 
         for i, pair in enumerate(suspected_pairs, 1):
-            self.console.print(f"[bold]Suspected Transfer {i}/{len(suspected_pairs)}[/bold]")
+            self.console.print(
+                f"[bold]Suspected Transfer {i}/{len(suspected_pairs)}[/bold]"
+            )
             self.console.print()
 
             # Display pair details
@@ -146,7 +148,7 @@ class InteractiveReviewer:
         self.console.print("  [bold]q[/bold] = Quit review")
 
     def _track_pattern(
-        self, pair: TransferPair, pattern_suggestions: dict
+        self, pair: TransferPair, pattern_suggestions: Dict[str, Any]
     ) -> None:
         """Track patterns from confirmed suspected transfers."""
         if not pair.reason:
@@ -155,7 +157,8 @@ class InteractiveReviewer:
         # Track date delay patterns
         if "date-delay" in pair.reason:
             import re
-            match = re.search(r'date-delay-(\d+)days', pair.reason)
+
+            match = re.search(r"date-delay-(\d+)days", pair.reason)
             if match:
                 days = int(match.group(1))
                 pattern_suggestions.setdefault("date_delays", []).append(days)
@@ -181,7 +184,7 @@ class InteractiveReviewer:
         )
 
     def _suggest_criteria_adjustments(
-        self, pattern_suggestions: dict, current_criteria: DetectionCriteria
+        self, pattern_suggestions: Dict[str, Any], current_criteria: DetectionCriteria
     ) -> DetectionCriteria:
         """Suggest and apply criteria adjustments based on patterns."""
         if not pattern_suggestions:
@@ -221,9 +224,7 @@ class InteractiveReviewer:
                 default=True,
             ):
                 updated_criteria.max_date_difference_days = max_delay
-                self.console.print(
-                    f"     [green]✓ Updated to {max_delay} days[/green]"
-                )
+                self.console.print(f"     [green]✓ Updated to {max_delay} days[/green]")
             self.console.print()
 
         # Suggest FX tolerance
@@ -233,10 +234,10 @@ class InteractiveReviewer:
                 f"[yellow]⚠️[/yellow]  Detected {fx_count} FX transfer(s) with amount mismatches"
             )
             self.console.print(
-                f"     These might be legitimate transfers with exchange rate differences"
+                "     These might be legitimate transfers with exchange rate differences"
             )
             self.console.print(
-                f"     Consider reviewing FX tolerance settings if needed"
+                "     Consider reviewing FX tolerance settings if needed"
             )
             self.console.print()
 

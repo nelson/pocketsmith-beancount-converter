@@ -30,15 +30,9 @@ def load_criteria_from_config(config_path: Path) -> Optional[DetectionCriteria]:
         from decimal import Decimal
 
         return DetectionCriteria(
-            max_date_difference_days=config_data.get(
-                "max_date_difference_days", 2
-            ),
-            amount_tolerance=Decimal(
-                str(config_data.get("amount_tolerance", "0.00"))
-            ),
-            max_suspected_date_days=config_data.get(
-                "max_suspected_date_days", 4
-            ),
+            max_date_difference_days=config_data.get("max_date_difference_days", 2),
+            amount_tolerance=Decimal(str(config_data.get("amount_tolerance", "0.00"))),
+            max_suspected_date_days=config_data.get("max_suspected_date_days", 4),
             fx_amount_tolerance_percent=Decimal(
                 str(config_data.get("fx_amount_tolerance_percent", "5.0"))
             ),
@@ -49,9 +43,7 @@ def load_criteria_from_config(config_path: Path) -> Optional[DetectionCriteria]:
         return None
 
 
-def save_criteria_to_config(
-    criteria: DetectionCriteria, config_path: Path
-) -> None:
+def save_criteria_to_config(criteria: DetectionCriteria, config_path: Path) -> None:
     """Save detection criteria to config file.
 
     Args:
@@ -65,9 +57,7 @@ def save_criteria_to_config(
         "max_date_difference_days": criteria.max_date_difference_days,
         "amount_tolerance": str(criteria.amount_tolerance),
         "max_suspected_date_days": criteria.max_suspected_date_days,
-        "fx_amount_tolerance_percent": str(
-            criteria.fx_amount_tolerance_percent
-        ),
+        "fx_amount_tolerance_percent": str(criteria.fx_amount_tolerance_percent),
         "name_variations": criteria.name_variations,
         "fx_enabled_accounts": criteria.fx_enabled_accounts,
     }

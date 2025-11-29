@@ -81,9 +81,15 @@ def test_update_preserves_comments_and_formatting():
 
         # Verify order maintained
         lines = result.split("\n")
-        store_a_line = next(i for i, line_text in enumerate(lines) if "Store A" in line_text)
-        store_b_line = next(i for i, line_text in enumerate(lines) if "Store B Updated" in line_text)
-        store_c_line = next(i for i, line_text in enumerate(lines) if "Store C" in line_text)
+        store_a_line = next(
+            i for i, line_text in enumerate(lines) if "Store A" in line_text
+        )
+        store_b_line = next(
+            i for i, line_text in enumerate(lines) if "Store B Updated" in line_text
+        )
+        store_c_line = next(
+            i for i, line_text in enumerate(lines) if "Store C" in line_text
+        )
         assert store_a_line < store_b_line < store_c_line, "Order should be preserved"
 
     finally:
@@ -141,8 +147,12 @@ def test_insert_new_transaction_in_chronological_order():
 
         # Verify chronological order
         lines = result.split("\n")
-        early_line = next(i for i, line_text in enumerate(lines) if "Early" in line_text)
-        middle_line = next(i for i, line_text in enumerate(lines) if "Middle" in line_text)
+        early_line = next(
+            i for i, line_text in enumerate(lines) if "Early" in line_text
+        )
+        middle_line = next(
+            i for i, line_text in enumerate(lines) if "Middle" in line_text
+        )
         late_line = next(i for i, line_text in enumerate(lines) if "Late" in line_text)
         assert early_line < middle_line < late_line, "Should be in chronological order"
 
@@ -197,8 +207,12 @@ def test_append_recent_transaction_at_end():
 
         # Verify order
         lines = result.split("\n")
-        first_line = next(i for i, line_text in enumerate(lines) if "First" in line_text)
-        recent_line = next(i for i, line_text in enumerate(lines) if "Recent" in line_text)
+        first_line = next(
+            i for i, line_text in enumerate(lines) if "First" in line_text
+        )
+        recent_line = next(
+            i for i, line_text in enumerate(lines) if "Recent" in line_text
+        )
         assert first_line < recent_line, "Recent should be after first"
 
     finally:
@@ -278,9 +292,15 @@ def test_mixed_update_and_insert():
 
         # Verify order
         lines = result.split("\n")
-        first_line = next(i for i, line_text in enumerate(lines) if "First Updated" in line_text)
-        new_line = next(i for i, line_text in enumerate(lines) if "New Middle" in line_text)
-        second_line = next(i for i, line_text in enumerate(lines) if "Second" in line_text)
+        first_line = next(
+            i for i, line_text in enumerate(lines) if "First Updated" in line_text
+        )
+        new_line = next(
+            i for i, line_text in enumerate(lines) if "New Middle" in line_text
+        )
+        second_line = next(
+            i for i, line_text in enumerate(lines) if "Second" in line_text
+        )
         assert first_line < new_line < second_line, (
             "Should maintain chronological order"
         )

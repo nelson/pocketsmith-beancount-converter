@@ -77,29 +77,38 @@ def _build_transaction_line_map(lines: List[str]) -> Dict[str, Tuple[int, int]]:
         Dict mapping transaction_id -> (start_line_index, end_line_index)
         where end_line_index points to the last posting line or trailing blank line
     """
-    txn_map = {}
-    current_txn_start = None
-    current_txn_id = None
-    current_txn_last_content_line = None  # Last line with actual content (posting)
+    txn_map: Dict[str, Tuple[int, int]] = {}
+    current_txn_start: Optional[int] = None
+    current_txn_id: Optional[str] = None
+    current_txn_last_content_line: Optional[int] = (
+        None  # Last line with actual content (posting)
+    )
     i = 0
+
+    def finalize_transaction(end_index: int) -> None:
+        nonlocal current_txn_start, current_txn_id, current_txn_last_content_line
+        if (
+            current_txn_start is None
+            or current_txn_id is None
+            or current_txn_last_content_line is None
+        ):
+            return
+
+        end_line = current_txn_last_content_line
+        j = current_txn_last_content_line + 1
+        while j < end_index and lines[j].strip() == "":
+            end_line = j
+            j += 1
+
+        txn_map[current_txn_id] = (current_txn_start, end_line)
 
     while i < len(lines):
         line = lines[i]
 
         # Detect start of transaction (date + flag + payee pattern)
         if re.match(r"^\d{4}-\d{2}-\d{2}\s+[*!]", line):
-            # If we have a previous transaction, finalize it
             if current_txn_start is not None and current_txn_id is not None:
-                # Find the end: last posting line + any immediately following blank lines
-                end_line = current_txn_last_content_line
-                # Include blank lines immediately after the last posting
-                j = current_txn_last_content_line + 1
-                while j < i and lines[j].strip() == "":
-                    end_line = j
-                    j += 1
-
-                txn_map[current_txn_id] = (current_txn_start, end_line)
-
+                finalize_transaction(i)
             current_txn_start = i
             current_txn_id = None
             current_txn_last_content_line = i  # Transaction header line
@@ -118,15 +127,7 @@ def _build_transaction_line_map(lines: List[str]) -> Dict[str, Tuple[int, int]]:
 
     # Handle last transaction
     if current_txn_start is not None and current_txn_id is not None:
-        # For the last transaction, include all remaining content lines
-        end_line = current_txn_last_content_line
-        # Include any trailing blank lines
-        j = current_txn_last_content_line + 1
-        while j < len(lines) and lines[j].strip() == "":
-            end_line = j
-            j += 1
-
-        txn_map[current_txn_id] = (current_txn_start, end_line)
+        finalize_transaction(len(lines))
 
     return txn_map
 
