@@ -102,6 +102,27 @@ class TestDiffComparator:
         assert comparator.different_count == 0
         assert comparator.not_fetched_count == 1
 
+    def test_compare_normalizes_payee_backslash(self):
+        """Test that stray backslashes in payees are ignored."""
+        comparator = DiffComparator()
+        local_transactions = {
+            "1": {
+                "id": 1,
+                "payee": "EFTPOS SMP*HERO SUSHI STRATHF STRATHFIELD02 AU",
+            }
+        }
+        remote_transactions = [
+            {
+                "id": 1,
+                "payee": "EFTPOS SMP*HERO SUSHI STRATHF \\STRATHFIELD02 AU",
+            }
+        ]
+
+        comparator.compare_for_diff(local_transactions, remote_transactions)
+
+        assert comparator.different_count == 0
+        assert comparator.identical_count == 1
+
     def test_format_summary(self):
         """Test formatting summary output."""
         comparator = DiffComparator()
@@ -158,23 +179,34 @@ class TestDiffComparator:
     def test_format_diff(self):
         """Test formatting diff-style output."""
         comparator = DiffComparator()
+        comparator.set_category_lookup({"24918120": "Expenses:Eating-Out"})
         comparator.differences = [
             {
                 "id": "123",
+                "local": {
+                    "source_filename": "/tmp/2025/2025-11.beancount",
+                    "source_lineno": 42,
+                },
                 "changes": [
-                    ("payee", "Old Payee", "New Payee"),
+                    ("payee", "Local Payee", "Remote Payee"),
+                    ("category", "24918120", "null"),
                 ],
             }
         ]
 
         ledger_path = Path("/tmp/test.beancount")
-        diff_output = comparator.format_diff(ledger_path, single_file=True)
+        diff_output = comparator.format_diff(ledger_path, single_file=False)
 
         assert "peabody diff 123" in diff_output
-        assert "--- local/" in diff_output and "/test.beancount/123" in diff_output
-        assert "+++ remote/123" in diff_output
-        assert "-   payee: Old Payee" in diff_output
-        assert "+   payee: New Payee" in diff_output
+        assert (
+            "--- remote:: GET https://api.pocketsmith.com/v2/transactions/123"
+            in diff_output
+        )
+        assert "+++ local:: FILE /tmp/2025/2025-11.beancount:42" in diff_output
+        assert "-   payee: Remote Payee" in diff_output
+        assert "+   payee: Local Payee" in diff_output
+        assert "-   category: null" in diff_output
+        assert "+   category: Expenses:Eating-Out" in diff_output
 
 
 class TestDiffCommand:
@@ -399,8 +431,11 @@ class TestDiffCommand:
                     mock_echo.assert_called_once()
                     output = mock_echo.call_args[0][0]
                     assert "peabody diff 1" in output
-                    assert "--- local" in output
-                    assert "+++ remote" in output
+                    assert (
+                        "--- remote:: GET https://api.pocketsmith.com/v2/transactions/1"
+                        in output
+                    )
+                    assert "+++ local:: FILE" in output
 
     @patch("src.cli.diff.PocketSmithClient")
     @patch("src.cli.diff.read_local_transactions")
