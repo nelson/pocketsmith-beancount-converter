@@ -84,7 +84,13 @@ class TransactionComparator:
 
         for field, display_name in fields_to_check:
             old_value = existing.get(field)
-            new_value = fetched.get(field)
+
+            # Extract category_id from nested category object
+            if field == "category_id":
+                category_obj = fetched.get("category")
+                new_value = category_obj.get("id") if category_obj else None
+            else:
+                new_value = fetched.get(field)
 
             # Special handling for labels (list comparison)
             if field == "labels":

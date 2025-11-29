@@ -519,7 +519,7 @@ class TestPullCommandTransactionComparison:
                     "id": 1,
                     "payee": "Updated Payee",  # Changed
                     "amount": "10.00",
-                    "category_id": 2,  # Also changed
+                    "category": {"id": 2, "title": "Updated Category"},  # Also changed
                     "date": "2024-01-15",
                     "currency_code": "USD",
                 }
