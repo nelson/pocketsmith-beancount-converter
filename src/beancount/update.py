@@ -213,8 +213,9 @@ def _insert_new_transactions(
     if not filtered_txns:
         return lines
 
-    # Sort new transactions by date
-    filtered_txns.sort(key=lambda t: t.get("date", ""))
+    # Sort new transactions by date in REVERSE order
+    # This ensures we insert from the end backwards, maintaining line numbers
+    filtered_txns.sort(key=lambda t: t.get("date", ""), reverse=True)
 
     # Find insertion points for each transaction
     new_lines = lines[:]
@@ -229,6 +230,12 @@ def _insert_new_transactions(
         # Split into lines and add newlines
         txn_lines = new_txn_text.split("\n")
         lines_to_insert = [line + "\n" for line in txn_lines]
+
+        # Check if we need to add a blank line BEFORE this transaction
+        # This happens when inserting after the last transaction and it doesn't have a trailing blank
+        if insertion_line > 0 and new_lines[insertion_line - 1].strip() != "":
+            # Previous line has content, need blank line separator
+            lines_to_insert.insert(0, "\n")
 
         # Add blank line after transaction
         lines_to_insert.append("\n")
