@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
 from datetime import datetime
 import json
+import re
 
 import typer
 from dotenv import load_dotenv
@@ -29,6 +30,14 @@ from beancount.core import data as bc_data
 from decimal import Decimal
 
 
+class LocalTransactionMap(dict):
+    """Dictionary of local transactions that preserves category metadata."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.category_lookup: Dict[str, str] = {}
+
+
 class DiffComparator:
     """Compare local and remote transactions to detect differences."""
 
@@ -38,6 +47,20 @@ class DiffComparator:
         self.different_count = 0
         self.not_fetched_count = 0
         self.total_fetched = 0
+        self.category_lookup: Dict[str, str] = {}
+
+    def set_category_lookup(self, lookup: Optional[Dict[Any, str]]) -> None:
+        """Provide optional mapping of category IDs to display names."""
+        if not lookup:
+            self.category_lookup = {}
+            return
+
+        normalized_lookup: Dict[str, str] = {}
+        for key, value in lookup.items():
+            if value is None:
+                continue
+            normalized_lookup[str(key)] = value
+        self.category_lookup = normalized_lookup
 
     def compare_for_diff(
         self,
@@ -114,7 +137,42 @@ class DiffComparator:
         if value is None or value == "" or value == []:
             return None
 
+        # Apply string normalization for human-entered fields
+        if isinstance(value, str):
+            normalized_value = value
+            if field in {"payee", "note"}:
+                # PocketSmith occasionally introduces stray backslashes; treat them as spaces
+                normalized_value = normalized_value.replace("\\", " ")
+            normalized_value = re.sub(r"\s+", " ", normalized_value).strip()
+            if not normalized_value:
+                return None
+            return normalized_value
+
         return value
+
+    def _format_category_value(self, value: Any) -> str:
+        """Convert category identifiers to human-readable names."""
+        if value is None:
+            return "null"
+
+        str_value = str(value)
+        if str_value.lower() == "null":
+            return "null"
+
+        if self.category_lookup:
+            lookup_value = self.category_lookup.get(str_value)
+            if lookup_value:
+                return lookup_value
+
+        return str_value
+
+    def _format_display_value(self, field: str, value: Any) -> str:
+        """Format values for presentation in diff output."""
+        if field.lower() == "category":
+            return self._format_category_value(value)
+        if value is None:
+            return "null"
+        return str(value)
 
     def _detect_differences(
         self, transaction_id: str, local: Dict[str, Any], remote: Dict[str, Any]
@@ -205,30 +263,47 @@ class DiffComparator:
 
         for diff in self.differences:
             transaction_id = diff["id"]
-
-            # For simplicity, we'll use a basic diff format
-            # In a real implementation, we'd need to parse the beancount file
-            # to get actual line numbers
             lines.append(f"peabody diff {transaction_id}")
 
-            if single_file:
-                file_path = str(ledger_path)
-            else:
-                # Would need to determine which file contains the transaction
-                file_path = str(ledger_path / "main.beancount")
+            local_entry = diff.get("local", {})
+            local_source = self._resolve_local_source(
+                local_entry, ledger_path, single_file
+            )
 
-            lines.append(f"--- local/{file_path}/{transaction_id}")
-            lines.append(f"+++ remote/{transaction_id}")
+            lines.append(
+                f"--- remote:: GET https://api.pocketsmith.com/v2/transactions/{transaction_id}"
+            )
+            lines.append(f"+++ local:: FILE {local_source}")
             lines.append("@@@ -1,1 +1,1 @@@")
 
             # Show the actual differences
             for field, local_val, remote_val in diff["changes"]:
-                lines.append(f"-   {field}: {local_val}")
-                lines.append(f"+   {field}: {remote_val}")
+                remote_display = self._format_display_value(field, remote_val)
+                local_display = self._format_display_value(field, local_val)
+                lines.append(f"-   {field}: {remote_display}")
+                lines.append(f"+   {field}: {local_display}")
 
             lines.append("")  # Empty line between diffs
 
         return "\n".join(lines)
+
+    def _resolve_local_source(
+        self, local_entry: Dict[str, Any], ledger_path: Path, single_file: bool
+    ) -> str:
+        """Determine the source file and line for local transactions."""
+        filename = local_entry.get("source_filename")
+        lineno = local_entry.get("source_lineno")
+
+        if not filename:
+            if single_file:
+                filename = str(ledger_path)
+            else:
+                filename = str(ledger_path / "main.beancount")
+
+        if lineno:
+            return f"{filename}:{lineno}"
+
+        return str(filename)
 
 
 def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str, Any]]:
@@ -236,18 +311,21 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
 
     Produces mapping: id -> {amount, payee, category_id, labels, note}
     """
+    local: LocalTransactionMap = LocalTransactionMap()
+
     # Determine the main file to parse
     ledger_file = path if single_file else (path / "main.beancount")
     if not ledger_file.exists():
-        return {}
+        return local
 
     try:
         entries, _errors, _opts = read_ledger(str(ledger_file))
     except Exception:
-        return {}
+        return local
 
     # Build category account -> id mapping from Open directives metadata
     category_id_map: Dict[str, Optional[int]] = {}
+    category_lookup: Dict[str, str] = {}
     for entry in entries:
         if isinstance(entry, bc_data.Open):
             account = entry.account
@@ -255,14 +333,21 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
                 meta = entry.meta or {}
                 cat_id = meta.get("id")
                 try:
-                    category_id_map[account] = (
-                        int(str(cat_id)) if cat_id is not None else None
-                    )
+                    if cat_id is not None:
+                        try:
+                            cat_int = int(str(cat_id))
+                        except Exception:
+                            cat_int = None
+                    else:
+                        cat_int = None
+
+                    category_id_map[account] = cat_int
+                    if cat_int is not None:
+                        category_lookup[str(cat_int)] = account
                 except Exception:
                     category_id_map[account] = None
 
     # Extract transactions
-    local: Dict[str, Dict[str, Any]] = {}
     for entry in entries:
         if isinstance(entry, bc_data.Transaction):
             meta = entry.meta or {}
@@ -342,7 +427,10 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
                     bool(is_transfer_val) if is_transfer_val is not None else False
                 )
 
-            local[tx_id] = {
+            source_filename = meta.get("filename")
+            source_lineno = meta.get("lineno")
+
+            local_entry = {
                 "amount": amount_val,
                 "payee": payee,
                 "category_id": category_id,
@@ -350,6 +438,17 @@ def read_local_transactions(path: Path, single_file: bool) -> Dict[str, Dict[str
                 "note": note_with_metadata,
                 "is_transfer": is_transfer,
             }
+            if source_filename:
+                local_entry["source_filename"] = str(source_filename)
+            if source_lineno:
+                try:
+                    local_entry["source_lineno"] = int(source_lineno)
+                except Exception:
+                    pass
+
+            local[tx_id] = local_entry
+
+    local.category_lookup = category_lookup
 
     return local
 
@@ -472,6 +571,9 @@ def diff_command(
 
         # Compare transactions
         comparator = DiffComparator()
+        comparator.set_category_lookup(
+            getattr(local_transactions, "category_lookup", {})
+        )
         comparator.compare_for_diff(local_transactions, transactions)
 
         # Format and print output based on format option
