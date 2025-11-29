@@ -85,23 +85,28 @@ def _extract_amount_from_beancount(beancount_data: Dict[str, Any]) -> Decimal:
     """Extract the main transaction amount from beancount postings."""
     postings = beancount_data.get("postings", [])
 
-    # Look for the Assets/Liabilities posting first (has correct sign for transfers)
+    fallback_amount: Optional[Decimal] = None
+
     for posting in postings:
+        units = posting.get("units")
+        if not units:
+            continue
+
+        number = units.get("number")
+        if number is None:
+            continue
+
+        amount = Decimal(str(number))
+
         account_name = posting.get("account", "")
         if account_name.startswith(("Assets:", "Liabilities:")):
-            if posting.get("units") and posting["units"].get("number"):
-                try:
-                    return Decimal(str(posting["units"]["number"]))
-                except (ValueError, TypeError):
-                    continue
+            return amount
 
-    # Fallback: look for the first posting with units (amount)
-    for posting in postings:
-        if posting.get("units") and posting["units"].get("number"):
-            try:
-                return Decimal(str(posting["units"]["number"]))
-            except (ValueError, TypeError):
-                continue
+        if fallback_amount is None:
+            fallback_amount = amount
+
+    if fallback_amount is not None:
+        return fallback_amount
 
     # Fallback to zero if no amount found
     return Decimal("0")
