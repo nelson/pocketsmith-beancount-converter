@@ -422,12 +422,11 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         flag = "!" if transaction.get("needs_review", False) else "*"
 
         # Extract payee and narration
-        payee = (transaction.get("merchant") or transaction.get("payee") or "").replace(
-            '"', '\\"'
-        )
+        payee = (transaction.get("payee") or "").replace('"', '\\"')
 
         # Decode metadata from note field during pull/clone
         from ..pocketsmith.metadata_encoding import decode_metadata_from_note
+
         raw_note = transaction.get("note") or transaction.get("memo") or ""
         clean_note, note_metadata = decode_metadata_from_note(raw_note)
         narration = (clean_note or "").replace('"', '\\"')
@@ -482,7 +481,9 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
                 lines.append(f"    paired: {paired_decimal}")
 
         # Use suspect_reason from decoded note metadata if available, otherwise from transaction dict
-        suspect_reason = note_metadata.get("suspect_reason") or transaction.get("suspect_reason")
+        suspect_reason = note_metadata.get("suspect_reason") or transaction.get(
+            "suspect_reason"
+        )
         if suspect_reason:
             lines.append(f'    suspect_reason: "{suspect_reason}"')
             # Also add human-readable comment after the transaction header
@@ -544,18 +545,26 @@ def convert_transaction_to_beancount(transaction: Dict[str, Any]) -> str:
         amount_str2 = str(posting2_number)
 
         # Get integer part lengths (before decimal point)
-        int_len1 = len(amount_str1.split('.')[0]) if '.' in amount_str1 else len(amount_str1)
-        int_len2 = len(amount_str2.split('.')[0]) if '.' in amount_str2 else len(amount_str2)
+        int_len1 = (
+            len(amount_str1.split(".")[0]) if "." in amount_str1 else len(amount_str1)
+        )
+        int_len2 = (
+            len(amount_str2.split(".")[0]) if "." in amount_str2 else len(amount_str2)
+        )
         max_int_len = max(int_len1, int_len2)
 
         # Format postings with aligned decimal points
         account_padding1 = max_account_len - len(posting1_account) + 2
         int_padding1 = max_int_len - int_len1
-        lines.append(f"  {posting1_account}{' ' * account_padding1}{' ' * int_padding1}{amount_str1} {currency}")
+        lines.append(
+            f"  {posting1_account}{' ' * account_padding1}{' ' * int_padding1}{amount_str1} {currency}"
+        )
 
         account_padding2 = max_account_len - len(posting2_account) + 2
         int_padding2 = max_int_len - int_len2
-        lines.append(f"  {posting2_account}{' ' * account_padding2}{' ' * int_padding2}{amount_str2} {currency}")
+        lines.append(
+            f"  {posting2_account}{' ' * account_padding2}{' ' * int_padding2}{amount_str2} {currency}"
+        )
 
         return "\n".join(lines)
 

@@ -79,7 +79,7 @@ class TestConvertPocketsmithToModel:
         assert transaction.amount == Decimal("100.50")
         assert transaction.date == date(2024, 1, 15)
         assert transaction.currency_code == "EUR"
-        assert transaction.merchant == "Test Merchant"
+        # merchant field removed - now only using payee
         assert transaction.payee == "Test Payee"
         assert transaction.note == "Test note"
         assert transaction.memo == "Test memo"
@@ -124,7 +124,7 @@ class TestConvertPocketsmithToModel:
         transaction = convert_pocketsmith_to_model(pocketsmith_data)
 
         # Empty/whitespace strings should become None
-        assert transaction.merchant is None
+        # merchant field removed - now only using payee
         assert transaction.payee is None  # Falls back to merchant which is None
         assert transaction.note is None
         assert transaction.memo is None  # Falls back to note which is None
@@ -136,14 +136,14 @@ class TestConvertPocketsmithToModel:
             "amount": "100.50",
             "date": "2024-01-15",
             "currency_code": "AUD",
-            "merchant": "Test Merchant",
+            "payee": "Test Payee",  # merchant field removed - use payee directly
             "note": "Test note",
-            # No payee or memo specified - should fallback
+            # No memo specified - should fallback to note
         }
 
         transaction = convert_pocketsmith_to_model(pocketsmith_data)
 
-        assert transaction.payee == "Test Merchant"  # Falls back to merchant
+        assert transaction.payee == "Test Payee"
         assert transaction.memo == "Test note"  # Falls back to note
 
     def test_convert_pocketsmith_currency_fallback(self):
@@ -496,10 +496,10 @@ class TestPropertyBasedTests:
 
         # Should handle empty/whitespace text appropriately
         if text_value.strip():
-            assert transaction.merchant == text_value.strip()  # Model strips whitespace
+            # merchant field removed - now only using payee
             assert transaction.note == text_value.strip()
         else:
-            assert transaction.merchant is None
+            # merchant field removed - now only using payee
             assert transaction.note is None
 
     @given(

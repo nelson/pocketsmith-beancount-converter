@@ -35,13 +35,13 @@ def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transactio
     currency_code = currency_code.upper()
 
     # Transaction details
-    merchant = pocketsmith_data.get("merchant", "").strip() or None
-    payee = pocketsmith_data.get("payee", "").strip() or merchant
+    payee = pocketsmith_data.get("payee", "").strip() or None
     raw_note = pocketsmith_data.get("note", "").strip() or None
     memo = pocketsmith_data.get("memo", "").strip() or raw_note
 
     # Extract transfer metadata from note field
     from ..pocketsmith.metadata_encoding import decode_metadata_from_note
+
     clean_note, note_metadata = decode_metadata_from_note(raw_note)
     note = clean_note or None
 
@@ -83,7 +83,6 @@ def convert_pocketsmith_to_model(pocketsmith_data: Dict[str, Any]) -> Transactio
         amount=amount,
         date=transaction_date,
         currency_code=currency_code,
-        merchant=merchant,
         payee=payee,
         note=note,
         memo=memo,

@@ -17,8 +17,7 @@ def convert_beancount_to_model(beancount_data: Dict[str, Any]) -> Transaction:
     currency_code = _extract_currency_from_beancount(beancount_data)
 
     # Extract transaction details
-    merchant = beancount_data.get("payee", "").strip() or None
-    payee = merchant  # In beancount, payee field serves as merchant
+    payee = beancount_data.get("payee", "").strip() or None
     note = beancount_data.get("narration", "").strip() or None
     memo = note  # Use narration as memo for consistency
 
@@ -56,7 +55,6 @@ def convert_beancount_to_model(beancount_data: Dict[str, Any]) -> Transaction:
         amount=amount,
         date=transaction_date,
         currency_code=currency_code,
-        merchant=merchant,
         payee=payee,
         note=note,
         memo=memo,
