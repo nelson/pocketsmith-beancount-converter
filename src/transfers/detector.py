@@ -4,7 +4,7 @@ import re
 import math
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict, Set, Any
 from collections import defaultdict
 
 from .models import TransferPair, DetectionCriteria, DetectionResult
@@ -25,7 +25,7 @@ class TransactionIndex:
 
         self._build_indices()
 
-    def _build_indices(self):
+    def _build_indices(self) -> None:
         """Build both indices. O(n)"""
         for txn in self.transactions:
             # Build date index
@@ -66,7 +66,7 @@ class TransactionIndex:
         self,
         txn: Transaction,
         max_days: int,
-        amount_tolerance_percent: Decimal = Decimal("0")
+        amount_tolerance_percent: Decimal = Decimal("0"),
     ) -> List[Transaction]:
         """Find candidate matches for a transaction.
 
@@ -75,7 +75,7 @@ class TransactionIndex:
         - Have matching amount (within tolerance)
         - Are from different account
         """
-        candidates = []
+        candidates: List[Transaction] = []
 
         # 1. Find amount bucket range
         amount = abs(txn.amount)
@@ -104,15 +104,13 @@ class TransactionIndex:
         min_amount = amount - tolerance
         max_amount = amount + tolerance
         amount_matches = [
-            t for t in amount_matches
-            if min_amount <= abs(t.amount) <= max_amount
+            t for t in amount_matches if min_amount <= abs(t.amount) <= max_amount
         ]
 
         # 4. Filter by date window
         txn_date = self._parse_date(txn.date)
-        date_range = set(
-            txn_date + timedelta(days=d)
-            for d in range(-max_days, max_days + 1)
+        date_range: Set[date] = set(
+            txn_date + timedelta(days=d) for d in range(-max_days, max_days + 1)
         )
 
         # 5. Combine: candidates must match amount AND date AND different account
@@ -132,20 +130,29 @@ class TransactionIndex:
 
         return candidates
 
-    def _parse_date(self, date_value) -> date:
+    def _parse_date(self, date_value: Any) -> date:
         """Parse date from various formats."""
         if isinstance(date_value, date):
             return date_value
         if isinstance(date_value, str):
             from datetime import datetime
+
             return datetime.fromisoformat(date_value.replace("Z", "+00:00")).date()
         raise ValueError(f"Cannot parse date: {date_value}")
 
     def _different_accounts(self, txn1: Transaction, txn2: Transaction) -> bool:
         """Check if from different accounts."""
         # Try ID first (PocketSmith), fall back to name (Beancount)
-        account1 = (txn1.account.get("id") or txn1.account.get("name")) if txn1.account else None
-        account2 = (txn2.account.get("id") or txn2.account.get("name")) if txn2.account else None
+        account1 = (
+            (txn1.account.get("id") or txn1.account.get("name"))
+            if txn1.account
+            else None
+        )
+        account2 = (
+            (txn2.account.get("id") or txn2.account.get("name"))
+            if txn2.account
+            else None
+        )
         return account1 != account2 and account1 is not None and account2 is not None
 
 
@@ -174,7 +181,7 @@ class TransferDetector:
             candidates = index.find_candidates(
                 txn,
                 max_days=self.criteria.max_date_difference_days,
-                amount_tolerance_percent=Decimal("0")
+                amount_tolerance_percent=Decimal("0"),
             )
 
             # Check each candidate
@@ -198,7 +205,7 @@ class TransferDetector:
             candidates = index.find_candidates(
                 txn,
                 max_days=self.criteria.max_suspected_date_days,
-                amount_tolerance_percent=self.criteria.fx_amount_tolerance_percent
+                amount_tolerance_percent=self.criteria.fx_amount_tolerance_percent,
             )
 
             for candidate in candidates:
@@ -207,7 +214,9 @@ class TransferDetector:
 
                 reasons = self._check_suspected_match(txn, candidate)
                 if reasons:
-                    pair = self._create_pair(txn, candidate, "suspected", ", ".join(reasons))
+                    pair = self._create_pair(
+                        txn, candidate, "suspected", ", ".join(reasons)
+                    )
                     suspected.append(pair)
                     paired_ids.add(txn.id)
                     paired_ids.add(candidate.id)
@@ -222,18 +231,14 @@ class TransferDetector:
         return DetectionResult(
             confirmed_pairs=confirmed,
             suspected_pairs=suspected,
-            unmatched_transactions=unmatched
+            unmatched_transactions=unmatched,
         )
 
     def _is_confirmed_match(self, txn1: Transaction, txn2: Transaction) -> bool:
         """Check if confirmed transfer (all criteria met)."""
         return self._opposite_directions(txn1, txn2)
 
-    def _check_suspected_match(
-        self,
-        txn1: Transaction,
-        txn2: Transaction
-    ) -> List[str]:
+    def _check_suspected_match(self, txn1: Transaction, txn2: Transaction) -> List[str]:
         """Return list of ALL reasons why this might be a transfer."""
         reasons = []
 
@@ -251,16 +256,18 @@ class TransferDetector:
             reasons.append(f"date-delay-{days_diff}days")
 
         # Scenario 4: Description suggests transfer
-        if self._description_suggests_transfer(txn1) or \
-           self._description_suggests_transfer(txn2):
+        if self._description_suggests_transfer(
+            txn1
+        ) or self._description_suggests_transfer(txn2):
             reasons.append("description-based")
 
         return reasons
 
     def _opposite_directions(self, txn1: Transaction, txn2: Transaction) -> bool:
         """Check if amounts have opposite signs."""
-        return (txn1.amount > 0 and txn2.amount < 0) or \
-               (txn1.amount < 0 and txn2.amount > 0)
+        return (txn1.amount > 0 and txn2.amount < 0) or (
+            txn1.amount < 0 and txn2.amount > 0
+        )
 
     def _has_amount_mismatch(self, txn1: Transaction, txn2: Transaction) -> bool:
         """Check if amount mismatch is within FX tolerance."""
@@ -283,10 +290,11 @@ class TransferDetector:
 
     def _has_fx_account(self, txn1: Transaction, txn2: Transaction) -> bool:
         """Check if either transaction is from an FX-enabled account."""
+        fx_accounts = self.criteria.fx_enabled_accounts or []
         for txn in [txn1, txn2]:
             if txn.account:
                 account_name = txn.account.get("name", "")
-                for fx_name in self.criteria.fx_enabled_accounts:
+                for fx_name in fx_accounts:
                     if fx_name.lower() in account_name.lower():
                         return True
         return False
@@ -297,28 +305,33 @@ class TransferDetector:
         date2 = self._parse_date(txn2.date)
         return abs((date1 - date2).days)
 
-    def _parse_date(self, date_value) -> date:
+    def _parse_date(self, date_value: Any) -> date:
         """Parse date from various formats."""
         if isinstance(date_value, date):
             return date_value
         if isinstance(date_value, str):
             from datetime import datetime
+
             return datetime.fromisoformat(date_value.replace("Z", "+00:00")).date()
         raise ValueError(f"Cannot parse date: {date_value}")
 
     def _description_suggests_transfer(self, txn: Transaction) -> bool:
         """Check if description contains 'transfer' and name pattern."""
-        description = " ".join([
-            txn.payee or "",
-            txn.memo or "",
-            txn.note or "",
-        ]).lower()
+        description = " ".join(
+            [
+                txn.payee or "",
+                txn.memo or "",
+                txn.note or "",
+            ]
+        ).lower()
 
         if "transfer" not in description:
             return False
 
         # Regex pattern for name variations
-        name_pattern = r'\b(l(ok\s+sun\s+nelson)?|n(elson)?|s(ophia)?|ls(n)?|ss)\s+s?\s*tam\b'
+        name_pattern = (
+            r"\b(l(ok\s+sun\s+nelson)?|n(elson)?|s(ophia)?|ls(n)?|ss)\s+s?\s*tam\b"
+        )
         return re.search(name_pattern, description, re.IGNORECASE) is not None
 
     def _create_pair(
@@ -326,7 +339,7 @@ class TransferDetector:
         txn1: Transaction,
         txn2: Transaction,
         confidence: str,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ) -> TransferPair:
         """Create a TransferPair with proper source/dest ordering."""
         # Source is negative (money leaving), dest is positive (money entering)
@@ -339,20 +352,18 @@ class TransferDetector:
             source_transaction=source,
             dest_transaction=dest,
             confidence=confidence,
-            reason=reason
+            reason=reason,
         )
 
     def _notify_patterns(
-        self,
-        confirmed: List[TransferPair],
-        suspected: List[TransferPair]
-    ):
+        self, confirmed: List[TransferPair], suspected: List[TransferPair]
+    ) -> None:
         """Detect and print patterns that might warrant criteria adjustment."""
         # Count date delays in suspected transfers
-        delay_counts = defaultdict(int)
+        delay_counts: Dict[int, int] = defaultdict(int)
         for pair in suspected:
             if pair.reason and "date-delay" in pair.reason:
-                match = re.search(r'date-delay-(\d+)days', pair.reason)
+                match = re.search(r"date-delay-(\d+)days", pair.reason)
                 if match:
                     days = int(match.group(1))
                     delay_counts[days] += 1
@@ -361,11 +372,15 @@ class TransferDetector:
         for days, count in sorted(delay_counts.items()):
             if count >= 1:
                 print(f"⚠️  Pattern detected: {count} transfer(s) with {days}-day delay")
-                print(f"   Consider adjusting max_date_difference_days from "
-                      f"{self.criteria.max_date_difference_days} to {days}")
+                print(
+                    f"   Consider adjusting max_date_difference_days from "
+                    f"{self.criteria.max_date_difference_days} to {days}"
+                )
 
         # Count FX mismatches
-        fx_count = sum(1 for p in suspected if p.reason and "amount-mismatch-fx" in p.reason)
+        fx_count = sum(
+            1 for p in suspected if p.reason and "amount-mismatch-fx" in p.reason
+        )
         if fx_count >= 1:
             print(f"⚠️  Pattern detected: {fx_count} suspected FX transfer(s)")
-            print(f"   Review if these should be confirmed transfers")
+            print("   Review if these should be confirmed transfers")

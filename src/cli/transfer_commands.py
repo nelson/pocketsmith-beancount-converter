@@ -77,9 +77,7 @@ def detect_transfers_command(
         entries, errors, options = read_ledger(str(main_file))
 
         if errors:
-            typer.echo(
-                f"Warning: {len(errors)} errors while reading ledger", err=True
-            )
+            typer.echo(f"Warning: {len(errors)} errors while reading ledger", err=True)
 
         # Convert to Transaction model
         beancount_txns = [e for e in entries if isinstance(e, bc_data.Transaction)]
@@ -283,9 +281,7 @@ def clear_transfers_command(
         entries, errors, options = read_ledger(str(main_file))
 
         if errors:
-            typer.echo(
-                f"Warning: {len(errors)} errors while reading ledger", err=True
-            )
+            typer.echo(f"Warning: {len(errors)} errors while reading ledger", err=True)
 
         # Count and clear transfer metadata
         cleared_count = 0
@@ -320,7 +316,7 @@ def clear_transfers_command(
             from ..transfers.applier import TransferApplier
 
             applier = TransferApplier(0)  # Category ID not needed for clearing
-            applier._write_entries_to_files(entries, ledger_path)
+            applier._write_entries_to_files(entries, ledger_path, set())
 
             typer.echo(f"✓ Cleared transfer metadata from {cleared_count} transactions")
         else:

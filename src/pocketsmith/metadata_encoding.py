@@ -8,7 +8,7 @@ Examples:
 """
 
 import re
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, Set
 
 
 def encode_metadata_in_note(note: Optional[str], metadata: Dict[str, Any]) -> str:
@@ -111,7 +111,9 @@ def remove_metadata_from_note(note: Optional[str]) -> str:
 
 
 def update_metadata_in_note(
-    note: Optional[str], updates: Dict[str, Any], remove_keys: Optional[set] = None
+    note: Optional[str],
+    updates: Dict[str, Any],
+    remove_keys: Optional[Set[str]] = None,
 ) -> str:
     """Update specific metadata fields in note.
 

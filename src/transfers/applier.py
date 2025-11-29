@@ -1,12 +1,13 @@
 """Apply transfer detection results to transactions."""
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Set
 from pathlib import Path
+from decimal import Decimal
 
 from .models import DetectionResult
 from ..compare.model import Transaction
 from ..beancount.read import read_ledger
-from ..beancount.write import convert_transaction_to_beancount
+from ..beancount.update import _build_transaction_line_map as build_line_map
 from beancount.core import data as bc_data
 
 
@@ -22,9 +23,7 @@ class TransferApplier:
         self.transfer_category_id = transfer_category_id
 
     def apply_to_transactions(
-        self,
-        result: DetectionResult,
-        transactions: List[Transaction]
+        self, result: DetectionResult, transactions: List[Transaction]
     ) -> List[Transaction]:
         """Apply transfer markings to transaction list.
 
@@ -58,13 +57,13 @@ class TransferApplier:
                     source_tx.category = {
                         "id": self.transfer_category_id,
                         "title": "Transfer",
-                        "is_transfer": True
+                        "is_transfer": True,
                     }
                 if dest_tx.category:
                     dest_tx.category = {
                         "id": self.transfer_category_id,
                         "title": "Transfer",
-                        "is_transfer": True
+                        "is_transfer": True,
                     }
 
         # Apply suspected transfers
@@ -87,10 +86,7 @@ class TransferApplier:
         return transactions
 
     def apply_to_ledger(
-        self,
-        result: DetectionResult,
-        ledger_path: Path,
-        in_place: bool = True
+        self, result: DetectionResult, ledger_path: Path, in_place: bool = True
     ) -> None:
         """Apply transfer markings directly to beancount ledger files.
 
@@ -190,7 +186,9 @@ class TransferApplier:
                 modified_entry_ids = {id(new) for old, new in updated_entries}
                 self._write_entries_to_files(entries, ledger_path, modified_entry_ids)
 
-    def _update_postings_to_transfer(self, entry: bc_data.Transaction) -> bc_data.Transaction:
+    def _update_postings_to_transfer(
+        self, entry: bc_data.Transaction
+    ) -> bc_data.Transaction:
         """Update transaction postings to use Expenses:Transfer category.
 
         Args:
@@ -199,7 +197,6 @@ class TransferApplier:
         Returns:
             New transaction with updated postings
         """
-        from beancount.core.amount import Amount
 
         new_postings = []
         for posting in entry.postings:
@@ -214,10 +211,7 @@ class TransferApplier:
         return entry._replace(postings=new_postings)
 
     def _write_entries_to_files(
-        self,
-        entries: List[Any],
-        ledger_path: Path,
-        modified_entry_ids: set
+        self, entries: List[Any], ledger_path: Path, modified_entry_ids: Set[int]
     ) -> None:
         """Write modified entries back to their source files using text-based updates.
 
@@ -227,7 +221,6 @@ class TransferApplier:
             modified_entry_ids: Set of entry IDs that were modified
         """
         from collections import defaultdict
-        import re
 
         # Group transactions by their source file
         # Track which files have modified transactions and which entries are modified
@@ -235,7 +228,11 @@ class TransferApplier:
         files_with_modifications: Dict[str, List[Any]] = {}  # file -> modified entries
 
         for entry in entries:
-            if isinstance(entry, bc_data.Transaction) and hasattr(entry, "meta") and "filename" in entry.meta:
+            if (
+                isinstance(entry, bc_data.Transaction)
+                and hasattr(entry, "meta")
+                and "filename" in entry.meta
+            ):
                 source_file = entry.meta["filename"]
                 # Skip main.beancount - only write monthly files
                 if not source_file.endswith("main.beancount"):
@@ -255,7 +252,7 @@ class TransferApplier:
                 lines = f.readlines()
 
             # Build map of transaction ID to line numbers
-            txn_line_map = self._build_transaction_line_map(lines)
+            txn_line_map = build_line_map(lines)
 
             # Convert modified entries to PocketSmith-style dicts for text generation
             # Sort by line number in reverse order to maintain line indices
@@ -297,66 +294,6 @@ class TransferApplier:
             with open(path, "w", encoding="utf-8") as f:
                 f.writelines(new_lines)
 
-    def _build_transaction_line_map(self, lines: List[str]) -> Dict[str, tuple]:
-        """Build a map of transaction ID to line numbers.
-
-        Returns:
-            Dict mapping transaction_id -> (start_line_index, end_line_index)
-        """
-        import re
-
-        txn_map = {}
-        current_txn_start = None
-        current_txn_id = None
-        current_txn_last_content_line = None
-        i = 0
-
-        while i < len(lines):
-            line = lines[i]
-
-            # Detect start of transaction (date + flag + payee pattern)
-            if re.match(r"^\d{4}-\d{2}-\d{2}\s+[*!]", line):
-                # If we have a previous transaction, finalize it
-                if current_txn_start is not None and current_txn_id is not None:
-                    # Find the end: last posting line + any immediately following blank lines
-                    end_line = current_txn_last_content_line
-                    # Include blank lines immediately after the last posting
-                    j = current_txn_last_content_line + 1
-                    while j < i and lines[j].strip() == "":
-                        end_line = j
-                        j += 1
-
-                    txn_map[current_txn_id] = (current_txn_start, end_line)
-
-                current_txn_start = i
-                current_txn_id = None
-                current_txn_last_content_line = i
-
-            # Look for id metadata
-            if current_txn_start is not None:
-                id_match = re.search(r"^\s+id:\s+(\d+)", line)
-                if id_match:
-                    current_txn_id = id_match.group(1)
-
-                # Track last content line (metadata or posting)
-                if line.strip() and not line.strip().startswith(";"):
-                    current_txn_last_content_line = i
-
-            i += 1
-
-        # Handle last transaction
-        if current_txn_start is not None and current_txn_id is not None:
-            end_line = current_txn_last_content_line
-            # Include any trailing blank lines
-            j = current_txn_last_content_line + 1
-            while j < len(lines) and lines[j].strip() == "":
-                end_line = j
-                j += 1
-
-            txn_map[current_txn_id] = (current_txn_start, end_line)
-
-        return txn_map
-
     def _format_entry_as_text(self, entry: bc_data.Transaction) -> str:
         """Format a beancount transaction entry as text, preserving ALL details.
 
@@ -372,10 +309,7 @@ class TransferApplier:
         Returns:
             Formatted transaction text
         """
-        from beancount.core.amount import Amount
-        from decimal import Decimal
-
-        lines = []
+        lines: List[str] = []
 
         # Transaction header: date flag "payee" "narration" tags/links
         date_str = entry.date.strftime("%Y-%m-%d")
@@ -444,7 +378,7 @@ class TransferApplier:
         # Add postings (2 spaces, with amounts aligned by decimal point)
         if entry.postings:
             # First pass: collect all posting info and find alignment position
-            posting_info = []
+            posting_info: List[Dict[str, Any]] = []
             max_account_len = 0
             max_amount_int_len = 0  # Length of integer part (before decimal)
 
@@ -455,8 +389,8 @@ class TransferApplier:
                 if posting.units:
                     amount_str = str(posting.units.number)
                     # Find integer part length (before decimal point or entire number)
-                    if '.' in amount_str:
-                        int_part = amount_str.split('.')[0]
+                    if "." in amount_str:
+                        int_part = amount_str.split(".")[0]
                     else:
                         int_part = amount_str
 
@@ -464,34 +398,47 @@ class TransferApplier:
                     int_len = len(int_part)
                     max_amount_int_len = max(max_amount_int_len, int_len)
 
-                    posting_info.append({
-                        'account': account,
-                        'number': posting.units.number,
-                        'currency': posting.units.currency,
-                        'amount_str': amount_str,
-                        'int_len': int_len
-                    })
+                    posting_info.append(
+                        {
+                            "account": account,
+                            "number": posting.units.number,
+                            "currency": posting.units.currency,
+                            "amount_str": amount_str,
+                            "int_len": int_len,
+                        }
+                    )
                 else:
-                    posting_info.append({
-                        'account': account,
-                        'number': None
-                    })
+                    posting_info.append(
+                        {
+                            "account": account,
+                            "number": None,
+                            "currency": None,
+                            "amount_str": "",
+                            "int_len": 0,
+                        }
+                    )
 
             # Second pass: format with aligned decimal points
             for info in posting_info:
-                if info['number'] is not None:
+                number = info.get("number")
+                account_name = str(info.get("account", ""))
+                if number is not None:
                     # Calculate padding: account + 2 spaces minimum
-                    account_padding = max_account_len - len(info['account']) + 2
+                    account_padding = max_account_len - len(account_name) + 2
 
                     # Align decimal points by right-aligning the integer part
-                    int_padding = max_amount_int_len - info['int_len']
+                    int_len = int(info.get("int_len", 0))
+                    int_padding = max_amount_int_len - int_len
 
-                    amount_str = info['amount_str']
-                    padded_amount = ' ' * int_padding + amount_str
+                    amount_str = str(info.get("amount_str", ""))
+                    padded_amount = " " * max(int_padding, 0) + amount_str
+                    currency_code = info.get("currency") or ""
 
-                    lines.append(f"  {info['account']}{' ' * account_padding}{padded_amount} {info['currency']}")
+                    lines.append(
+                        f"  {account_name}{' ' * account_padding}{padded_amount} {currency_code}"
+                    )
                 else:
                     # Posting without amount
-                    lines.append(f"  {info['account']}")
+                    lines.append(f"  {account_name}")
 
         return "\n".join(lines)

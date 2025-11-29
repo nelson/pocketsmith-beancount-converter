@@ -1,7 +1,6 @@
 """Tests for transfer detector with spatial hash indexing."""
 
-import pytest
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from src.transfers.detector import TransferDetector, TransactionIndex
@@ -60,9 +59,15 @@ class TestTransactionIndex:
 
     def test_find_candidates_exact_match(self):
         """Test finding candidates with exact amount match."""
-        txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1, "Account A")
-        txn2 = create_transaction("2", Decimal("100.00"), date(2025, 1, 2), 2, "Account B")
-        txn3 = create_transaction("3", Decimal("-50.00"), date(2025, 1, 1), 1, "Account A")
+        txn1 = create_transaction(
+            "1", Decimal("-100.00"), date(2025, 1, 1), 1, "Account A"
+        )
+        txn2 = create_transaction(
+            "2", Decimal("100.00"), date(2025, 1, 2), 2, "Account B"
+        )
+        txn3 = create_transaction(
+            "3", Decimal("-50.00"), date(2025, 1, 1), 1, "Account A"
+        )
 
         index = TransactionIndex([txn1, txn2, txn3])
         candidates = index.find_candidates(txn1, max_days=3)
@@ -72,24 +77,34 @@ class TestTransactionIndex:
 
     def test_find_candidates_with_tolerance(self):
         """Test finding candidates with amount tolerance."""
-        txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1, "Account A")
-        txn2 = create_transaction("2", Decimal("102.00"), date(2025, 1, 2), 2, "Account B")  # 2% diff
+        txn1 = create_transaction(
+            "1", Decimal("-100.00"), date(2025, 1, 1), 1, "Account A"
+        )
+        txn2 = create_transaction(
+            "2", Decimal("102.00"), date(2025, 1, 2), 2, "Account B"
+        )  # 2% diff
 
         index = TransactionIndex([txn1, txn2])
 
         # With 5% tolerance, should find
-        candidates = index.find_candidates(txn1, max_days=3, amount_tolerance_percent=Decimal("5.0"))
+        candidates = index.find_candidates(
+            txn1, max_days=3, amount_tolerance_percent=Decimal("5.0")
+        )
         assert len(candidates) == 1
 
         # With 1% tolerance, should not find
-        candidates = index.find_candidates(txn1, max_days=3, amount_tolerance_percent=Decimal("1.0"))
+        candidates = index.find_candidates(
+            txn1, max_days=3, amount_tolerance_percent=Decimal("1.0")
+        )
         assert len(candidates) == 0
 
     def test_find_candidates_date_filter(self):
         """Test date filtering."""
         txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1)
         txn2 = create_transaction("2", Decimal("100.00"), date(2025, 1, 2), 2)  # 1 day
-        txn3 = create_transaction("3", Decimal("100.00"), date(2025, 1, 10), 3)  # 9 days
+        txn3 = create_transaction(
+            "3", Decimal("100.00"), date(2025, 1, 10), 3
+        )  # 9 days
 
         index = TransactionIndex([txn1, txn2, txn3])
 
@@ -103,8 +118,12 @@ class TestTransferDetector:
 
     def test_detect_confirmed_transfer_simple(self):
         """Test detecting a simple confirmed transfer."""
-        txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1, "Checking")
-        txn2 = create_transaction("2", Decimal("100.00"), date(2025, 1, 1), 2, "Savings")
+        txn1 = create_transaction(
+            "1", Decimal("-100.00"), date(2025, 1, 1), 1, "Checking"
+        )
+        txn2 = create_transaction(
+            "2", Decimal("100.00"), date(2025, 1, 1), 2, "Savings"
+        )
 
         detector = TransferDetector()
         result = detector.detect_transfers([txn1, txn2])
@@ -121,7 +140,9 @@ class TestTransferDetector:
     def test_detect_confirmed_transfer_with_date_diff(self):
         """Test confirmed transfer with date difference within threshold."""
         txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1)
-        txn2 = create_transaction("2", Decimal("100.00"), date(2025, 1, 3), 2)  # 2 days later
+        txn2 = create_transaction(
+            "2", Decimal("100.00"), date(2025, 1, 3), 2
+        )  # 2 days later
 
         criteria = DetectionCriteria(max_date_difference_days=2)
         detector = TransferDetector(criteria)
@@ -132,9 +153,13 @@ class TestTransferDetector:
     def test_no_match_beyond_date_threshold(self):
         """Test that transfers beyond date threshold become suspected."""
         txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1)
-        txn2 = create_transaction("2", Decimal("100.00"), date(2025, 1, 5), 2)  # 4 days later
+        txn2 = create_transaction(
+            "2", Decimal("100.00"), date(2025, 1, 5), 2
+        )  # 4 days later
 
-        criteria = DetectionCriteria(max_date_difference_days=2, max_suspected_date_days=5)
+        criteria = DetectionCriteria(
+            max_date_difference_days=2, max_suspected_date_days=5
+        )
         detector = TransferDetector(criteria)
         result = detector.detect_transfers([txn1, txn2])
 
@@ -158,11 +183,12 @@ class TestTransferDetector:
     def test_amount_mismatch_fx(self):
         """Test FX amount mismatch detection."""
         txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1, "Wise")
-        txn2 = create_transaction("2", Decimal("102.00"), date(2025, 1, 1), 2, "Checking")  # 2% diff
+        txn2 = create_transaction(
+            "2", Decimal("102.00"), date(2025, 1, 1), 2, "Checking"
+        )  # 2% diff
 
         criteria = DetectionCriteria(
-            fx_enabled_accounts=["Wise"],
-            fx_amount_tolerance_percent=Decimal("5.0")
+            fx_enabled_accounts=["Wise"], fx_amount_tolerance_percent=Decimal("5.0")
         )
         detector = TransferDetector(criteria)
         result = detector.detect_transfers([txn1, txn2])
@@ -174,12 +200,10 @@ class TestTransferDetector:
     def test_description_based_detection(self):
         """Test description-based transfer detection."""
         txn1 = create_transaction(
-            "1", Decimal("-100.00"), date(2025, 1, 1), 1,
-            payee="Transfer to N Tam"
+            "1", Decimal("-100.00"), date(2025, 1, 1), 1, payee="Transfer to N Tam"
         )
         txn2 = create_transaction(
-            "2", Decimal("100.00"), date(2025, 1, 5), 2,
-            payee="Transfer from Sophia"
+            "2", Decimal("100.00"), date(2025, 1, 5), 2, payee="Transfer from Sophia"
         )
 
         criteria = DetectionCriteria(max_suspected_date_days=5)
@@ -189,8 +213,7 @@ class TestTransferDetector:
         # Should be suspected due to date delay + description match
         assert len(result.suspected_pairs) >= 1
         suspect_pair = next(
-            (p for p in result.suspected_pairs if p.source_id == "1"),
-            None
+            (p for p in result.suspected_pairs if p.source_id == "1"), None
         )
         if suspect_pair:
             assert "description-based" in suspect_pair.reason
@@ -209,7 +232,9 @@ class TestTransferDetector:
     def test_no_same_account_pairing(self):
         """Test that transactions from same account don't pair."""
         txn1 = create_transaction("1", Decimal("-100.00"), date(2025, 1, 1), 1)
-        txn2 = create_transaction("2", Decimal("100.00"), date(2025, 1, 1), 1)  # Same account
+        txn2 = create_transaction(
+            "2", Decimal("100.00"), date(2025, 1, 1), 1
+        )  # Same account
 
         detector = TransferDetector()
         result = detector.detect_transfers([txn1, txn2])

@@ -7,21 +7,16 @@ c. detect-transfer→push→pull are byte-identical
 d. Multiple detect-transfer runs produce same result
 """
 
-import pytest
-from pathlib import Path
 from decimal import Decimal
 from datetime import date
-import tempfile
-import shutil
 
 from src.transfers.detector import TransferDetector
-from src.transfers.models import DetectionCriteria
-from src.transfers.applier import TransferApplier
 from src.compare.model import Transaction
 from src.beancount.write import convert_transaction_to_beancount
-from src.beancount.read import read_ledger
-from src.compare.beancount import convert_beancount_to_model
-from src.pocketsmith.metadata_encoding import encode_metadata_in_note, decode_metadata_from_note
+from src.pocketsmith.metadata_encoding import (
+    encode_metadata_in_note,
+    decode_metadata_from_note,
+)
 
 
 def create_test_transaction(
