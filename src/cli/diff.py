@@ -143,7 +143,8 @@ class DiffComparator:
             if field in {"payee", "note"}:
                 # PocketSmith occasionally introduces stray backslashes; treat them as spaces
                 normalized_value = normalized_value.replace("\\", " ")
-            normalized_value = re.sub(r"\s+", " ", normalized_value).strip()
+                normalized_value = re.sub(r" {2,}", " ", normalized_value)
+            normalized_value = normalized_value.strip()
             if not normalized_value:
                 return None
             return normalized_value

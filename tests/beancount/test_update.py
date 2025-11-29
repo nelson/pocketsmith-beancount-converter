@@ -32,7 +32,7 @@ def test_update_preserves_comments_and_formatting():
 """
 
     # Create temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.beancount', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".beancount", delete=False) as f:
         temp_path = Path(f.name)
         f.write(original_content)
 
@@ -62,26 +62,28 @@ def test_update_preserves_comments_and_formatting():
         update_monthly_file_preserving_format(temp_path, [updated_txn], 2025, 1)
 
         # Read result
-        with open(temp_path, 'r') as f:
+        with open(temp_path, "r") as f:
             result = f.read()
 
         # Verify preservations
         assert "; Header comment" in result, "Header comment should be preserved"
         assert "; Generated on some date" in result, "Comment line preserved"
-        assert "; First transaction - important note!" in result, "Transaction comment preserved"
+        assert "; First transaction - important note!" in result, (
+            "Transaction comment preserved"
+        )
         assert "; Second transaction" in result, "Second transaction comment preserved"
         assert "; Final transaction" in result, "Final transaction comment preserved"
 
         # Verify update happened
         assert "Store B Updated" in result, "Transaction should be updated"
-        assert ("35.0 AUD" in result or "35.00 AUD" in result), "Amount should be updated"
+        assert "35.0 AUD" in result or "35.00 AUD" in result, "Amount should be updated"
         assert '2025-01-16 * "Store B Updated"' in result, "Flag should be updated"
 
         # Verify order maintained
-        lines = result.split('\n')
-        store_a_line = next(i for i, l in enumerate(lines) if "Store A" in l)
-        store_b_line = next(i for i, l in enumerate(lines) if "Store B Updated" in l)
-        store_c_line = next(i for i, l in enumerate(lines) if "Store C" in l)
+        lines = result.split("\n")
+        store_a_line = next(i for i, line_text in enumerate(lines) if "Store A" in line_text)
+        store_b_line = next(i for i, line_text in enumerate(lines) if "Store B Updated" in line_text)
+        store_c_line = next(i for i, line_text in enumerate(lines) if "Store C" in line_text)
         assert store_a_line < store_b_line < store_c_line, "Order should be preserved"
 
     finally:
@@ -103,7 +105,7 @@ def test_insert_new_transaction_in_chronological_order():
     Expenses:Groceries  30.00 AUD
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.beancount', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".beancount", delete=False) as f:
         temp_path = Path(f.name)
         f.write(original_content)
 
@@ -131,17 +133,17 @@ def test_insert_new_transaction_in_chronological_order():
 
         update_monthly_file_preserving_format(temp_path, [new_txn], 2025, 1)
 
-        with open(temp_path, 'r') as f:
+        with open(temp_path, "r") as f:
             result = f.read()
 
         # Verify insertion
         assert "Middle transaction" in result, "New transaction should be inserted"
 
         # Verify chronological order
-        lines = result.split('\n')
-        early_line = next(i for i, l in enumerate(lines) if "Early" in l)
-        middle_line = next(i for i, l in enumerate(lines) if "Middle" in l)
-        late_line = next(i for i, l in enumerate(lines) if "Late" in l)
+        lines = result.split("\n")
+        early_line = next(i for i, line_text in enumerate(lines) if "Early" in line_text)
+        middle_line = next(i for i, line_text in enumerate(lines) if "Middle" in line_text)
+        late_line = next(i for i, line_text in enumerate(lines) if "Late" in line_text)
         assert early_line < middle_line < late_line, "Should be in chronological order"
 
         # Verify original comments preserved
@@ -159,7 +161,7 @@ def test_append_recent_transaction_at_end():
     Expenses:Groceries  10.00 AUD
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.beancount', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".beancount", delete=False) as f:
         temp_path = Path(f.name)
         f.write(original_content)
 
@@ -187,16 +189,16 @@ def test_append_recent_transaction_at_end():
 
         update_monthly_file_preserving_format(temp_path, [new_txn], 2025, 1)
 
-        with open(temp_path, 'r') as f:
+        with open(temp_path, "r") as f:
             result = f.read()
 
         # Verify appended
         assert "Recent transaction" in result
 
         # Verify order
-        lines = result.split('\n')
-        first_line = next(i for i, l in enumerate(lines) if "First" in l)
-        recent_line = next(i for i, l in enumerate(lines) if "Recent" in l)
+        lines = result.split("\n")
+        first_line = next(i for i, line_text in enumerate(lines) if "First" in line_text)
+        recent_line = next(i for i, line_text in enumerate(lines) if "Recent" in line_text)
         assert first_line < recent_line, "Recent should be after first"
 
     finally:
@@ -216,7 +218,7 @@ def test_mixed_update_and_insert():
     Expenses:Groceries  20.00 AUD
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.beancount', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".beancount", delete=False) as f:
         temp_path = Path(f.name)
         f.write(original_content)
 
@@ -262,22 +264,26 @@ def test_mixed_update_and_insert():
             },
         }
 
-        update_monthly_file_preserving_format(temp_path, [updated_txn, new_txn], 2025, 1)
+        update_monthly_file_preserving_format(
+            temp_path, [updated_txn, new_txn], 2025, 1
+        )
 
-        with open(temp_path, 'r') as f:
+        with open(temp_path, "r") as f:
             result = f.read()
 
         # Verify both operations
         assert "First Updated" in result, "Transaction should be updated"
-        assert ("15.0 AUD" in result or "15.00 AUD" in result), "Amount should be updated"
+        assert "15.0 AUD" in result or "15.00 AUD" in result, "Amount should be updated"
         assert "New middle transaction" in result, "New transaction should be inserted"
 
         # Verify order
-        lines = result.split('\n')
-        first_line = next(i for i, l in enumerate(lines) if "First Updated" in l)
-        new_line = next(i for i, l in enumerate(lines) if "New Middle" in l)
-        second_line = next(i for i, l in enumerate(lines) if "Second" in l)
-        assert first_line < new_line < second_line, "Should maintain chronological order"
+        lines = result.split("\n")
+        first_line = next(i for i, line_text in enumerate(lines) if "First Updated" in line_text)
+        new_line = next(i for i, line_text in enumerate(lines) if "New Middle" in line_text)
+        second_line = next(i for i, line_text in enumerate(lines) if "Second" in line_text)
+        assert first_line < new_line < second_line, (
+            "Should maintain chronological order"
+        )
 
     finally:
         temp_path.unlink()

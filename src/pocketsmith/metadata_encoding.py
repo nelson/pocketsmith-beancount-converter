@@ -65,7 +65,7 @@ def decode_metadata_from_note(note: Optional[str]) -> Tuple[str, Dict[str, Any]]
     metadata: Dict[str, Any] = {}
 
     # Find all [key:value] patterns
-    pattern = r'\[(\w+):([^\]]+)\]'
+    pattern = r"\[(\w+):([^\]]+)\]"
     matches = re.finditer(pattern, note)
 
     for match in matches:
@@ -86,9 +86,9 @@ def decode_metadata_from_note(note: Optional[str]) -> Tuple[str, Dict[str, Any]]
             metadata[key] = value
 
     # Remove metadata tags from note
-    clean_note = re.sub(pattern, '', note).strip()
-    # Clean up multiple spaces
-    clean_note = re.sub(r'\s+', ' ', clean_note)
+    clean_note = re.sub(pattern, "", note).strip()
+    # Clean up multiple consecutive spaces without touching newlines/carriage returns
+    clean_note = re.sub(r" {2,}", " ", clean_note)
 
     return clean_note, metadata
 
@@ -111,9 +111,7 @@ def remove_metadata_from_note(note: Optional[str]) -> str:
 
 
 def update_metadata_in_note(
-    note: Optional[str],
-    updates: Dict[str, Any],
-    remove_keys: Optional[set] = None
+    note: Optional[str], updates: Dict[str, Any], remove_keys: Optional[set] = None
 ) -> str:
     """Update specific metadata fields in note.
 
