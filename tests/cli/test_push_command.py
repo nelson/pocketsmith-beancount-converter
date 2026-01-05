@@ -97,11 +97,11 @@ def test_push_writes_changelog_and_updates_remote(
     assert len(fake_client.updated) == 1
     update = fake_client.updated[0]
     assert update["transaction_id"] == "1001"
-    # Expect note, labels and possibly category_id from local (note present, labels ["coffee"])
+    # Expect note, labels from local (note present, labels ["coffee"])
     assert update["updates"]["note"] == "morning latte"
     assert update["updates"]["labels"] == ["coffee"]
-    # Category id should be preserved as 123 per local mapping
-    assert update["updates"]["category_id"] == 123
+    # Category should NOT be in updates since both local and remote have id 123
+    assert "category_id" not in update["updates"]
 
     # Verify changelog written
     changelog_path = determine_changelog_path(ledger_path, True)

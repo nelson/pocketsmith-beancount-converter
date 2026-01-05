@@ -32,7 +32,7 @@ class TestDiffComparator:
                 "id": 1,
                 "amount": "100.00",
                 "payee": "Test Merchant",
-                "category_id": 1,
+                "category": {"id": 1, "title": "Test Category"},
                 "labels": ["tag1", "tag2"],
                 "note": "Test note",
             }
@@ -65,7 +65,7 @@ class TestDiffComparator:
                 "id": 1,
                 "amount": "100.00",
                 "payee": "Remote Merchant",  # Different
-                "category_id": 2,  # Different
+                "category": {"id": 2, "title": "Different Category"},  # Different
                 "labels": ["remote-tag"],  # Different
                 "note": "Remote note",  # Different
             }
@@ -122,6 +122,36 @@ class TestDiffComparator:
 
         assert comparator.different_count == 0
         assert comparator.identical_count == 1
+
+    def test_compare_extracts_category_id_from_nested_object(self):
+        """Test that category_id is correctly extracted from nested category object."""
+        comparator = DiffComparator()
+        local_transactions = {
+            "1": {
+                "id": 1,
+                "payee": "Test Store",
+                "category_id": 24918120,
+            }
+        }
+        # Pocketsmith API returns category as nested object
+        remote_transactions = [
+            {
+                "id": 1,
+                "payee": "Test Store",
+                "category": {
+                    "id": 24918120,
+                    "title": "_Groceries",
+                    "colour": None,
+                },
+            }
+        ]
+
+        comparator.compare_for_diff(local_transactions, remote_transactions)
+
+        # Should recognize categories as identical
+        assert comparator.different_count == 0
+        assert comparator.identical_count == 1
+        assert len(comparator.differences) == 0
 
     def test_format_summary(self):
         """Test formatting summary output."""
