@@ -127,16 +127,27 @@ class ChangelogManager:
                         else None
                     )
                 elif entry.operation == "PULL":
-                    from_date = (
-                        entry.details[1]
-                        if len(entry.details) > 1 and entry.details[1]
-                        else None
-                    )
-                    to_date = (
-                        entry.details[2]
-                        if len(entry.details) > 2 and entry.details[2]
-                        else None
-                    )
+                    # Handle case where split() removed empty SINCE field
+                    # If we have 2 details and first looks like a date (YYYY-MM-DD),
+                    # it means SINCE was empty and got removed by split()
+                    if len(entry.details) == 2 and re.match(
+                        r"^\d{4}-\d{2}-\d{2}$", entry.details[0]
+                    ):
+                        # Format is [FROM, TO] instead of [SINCE, FROM, TO]
+                        from_date = entry.details[0] if entry.details[0] else None
+                        to_date = entry.details[1] if entry.details[1] else None
+                    else:
+                        # Normal format: [SINCE, FROM, TO]
+                        from_date = (
+                            entry.details[1]
+                            if len(entry.details) > 1 and entry.details[1]
+                            else None
+                        )
+                        to_date = (
+                            entry.details[2]
+                            if len(entry.details) > 2 and entry.details[2]
+                            else None
+                        )
 
                 return (entry.timestamp, from_date, to_date)
 

@@ -197,7 +197,13 @@ class DiffComparator:
 
         for field, display_name in fields_to_check:
             local_value = local.get(field)
-            remote_value = remote.get(field)
+
+            # Extract category_id from nested category object
+            if field == "category_id":
+                category_obj = remote.get("category")
+                remote_value = category_obj.get("id") if category_obj else None
+            else:
+                remote_value = remote.get(field)
 
             # Special handling for labels (list comparison)
             if field == "labels":
