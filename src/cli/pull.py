@@ -282,9 +282,24 @@ def pull_command(
             end_date_str = end_date.isoformat() if end_date else None
             use_new_dates = True
         else:
-            # Use dates from last sync
-            start_date_str = last_from_date
-            end_date_str = last_to_date
+            # Calculate date range based on last sync
+            # Start from last_to_date - 7 days (to catch any updates)
+            # End at today
+            from datetime import datetime, date
+
+            if last_to_date:
+                # Parse last_to_date and subtract 7 days
+                last_to = datetime.fromisoformat(last_to_date).date()
+                start_date = last_to - timedelta(days=7)
+                start_date_str = start_date.isoformat()
+            else:
+                # If no last_to_date, use last_from_date
+                start_date_str = last_from_date
+
+            # Always use today as end date
+            end_date = date.today()
+            end_date_str = end_date.isoformat()
+            use_new_dates = True
 
         # Connect to PocketSmith API
         if not quiet:
