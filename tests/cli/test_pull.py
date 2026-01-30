@@ -116,10 +116,17 @@ class TestPullCommandSingleFileMode:
             assert "Ledger" in result.output and "updated" in result.output
             assert "Changelog" in result.output and "updated" in result.output
 
-            # Check that updated_since was used
+            # Check that date range was used (last_to_date - 7 days through today)
             mock_client.get_transactions.assert_called()
             call_args = mock_client.get_transactions.call_args
-            assert "updated_since" in call_args[1]
+            # The start_date should be 2024-01-31 - 7 days = 2024-01-24
+            assert call_args[1]["start_date"] == "2024-01-24"
+            # The end_date should be today (2026-01-30)
+            from datetime import date
+
+            assert call_args[1]["end_date"] == date.today().isoformat()
+            # Should NOT use updated_since with the new behavior
+            assert "updated_since" not in call_args[1]
 
 
 class TestPullCommandHierarchicalMode:
@@ -241,7 +248,7 @@ class TestPullCommandDateHandling:
 
     @patch("src.cli.pull.PocketSmithClient")
     def test_pull_uses_last_sync_dates(self, mock_client_class):
-        """Test that pull uses dates from last sync when no new dates provided."""
+        """Test that pull uses date range based on last sync (last_to_date - 7 days through today)."""
         runner = CliRunner()
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -266,12 +273,17 @@ class TestPullCommandDateHandling:
 
             assert result.exit_code == 0
 
-            # Should call get_transactions with original date range and updated_since
+            # Should call get_transactions with date range from last_to_date - 7 days through today
             mock_client.get_transactions.assert_called_once()
             call_args = mock_client.get_transactions.call_args
-            assert call_args[1]["start_date"] == "2024-01-01"
-            assert call_args[1]["end_date"] == "2024-01-31"
-            assert "updated_since" in call_args[1]
+            # start_date should be 2024-01-31 - 7 days = 2024-01-24
+            assert call_args[1]["start_date"] == "2024-01-24"
+            # end_date should be today
+            from datetime import date
+
+            assert call_args[1]["end_date"] == date.today().isoformat()
+            # Should NOT use updated_since with the new behavior
+            assert "updated_since" not in call_args[1]
 
     @patch("src.cli.pull.PocketSmithClient")
     def test_pull_uses_new_date_range(self, mock_client_class):
